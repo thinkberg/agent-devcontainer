@@ -1,0 +1,97 @@
+// Restricted dev container for a Claude Code agent (extracted from the
+// extracarts devcontainer). The workspace is mounted at the SAME path as on
+// the host so absolute paths (venv shebangs, IDE references, logs) agree on
+// both sides. Secrets are masked by mounts below — the `mounts` array IS the
+// masked-file inventory.
+{
+  "name": "PROJECTNAME-dev",
+  "build": { "dockerfile": "Dockerfile" },
+  "runArgs": [
+    "--name=PROJECTNAME-dev",
+    "--init",
+    // rootless podman: host user <-> vscode (same uid), so the agent runs
+    // non-root with natural bind-mount ownership — the thing rootless
+    // docker could not do (it forced remoteUser root)
+    "--userns=keep-id",
+    // kills setuid: sudo is inert, root work is pid 1 (entry.sh) or
+    // podman exec -u root from the host (dcc allow / dcc fw / dcc root)
+    "--security-opt=no-new-privileges",
+    // project bridge, created by dcc (an optional database sidecar resolves
+    // as hostname "postgres"; subnet pinned for the firewall rule)
+    "--network=PROJECTNAME-net",
+    // hardened: drop everything, add back only what pid-1 root (entry.sh:
+    // firewall, chown) needs. NET_ADMIN/NET_RAW: iptables/ipset — root-only,
+    // vscode has no caps, which is what makes the firewall tamper-proof.
+    "--cap-drop=ALL",
+    "--cap-add=CHOWN",
+    "--cap-add=DAC_OVERRIDE",
+    "--cap-add=FOWNER",
+    "--cap-add=KILL",
+    "--cap-add=NET_ADMIN",
+    "--cap-add=NET_RAW"
+  ],
+
+  "workspaceMount": "source=${localWorkspaceFolder},target=${localWorkspaceFolder},type=bind",
+  "workspaceFolder": "${localWorkspaceFolder}",
+
+  "mounts": [
+    // the container's own claude state (auth, memory, settings), kept
+    // host-visible in the project root for easy seeding/backup — host
+    // ~/.claude is never mounted (host transcripts contain live secrets).
+    // In a git repo, dcc init adds .claude-devcontainer/ to .gitignore.
+    "source=${localWorkspaceFolder}/.claude-devcontainer,target=/home/vscode/.claude,type=bind",
+    // the one credential: scoped PAT (+ optional git identity and ssh
+    // signing key), read-only; per-project dir on the host, fixed path
+    // inside so the scripts stay generic
+    "source=${localEnv:HOME}/.config/PROJECTNAME-devcontainer,target=/home/vscode/.config/devcontainer,type=bind,readonly"
+
+    // ---- masked secret files (this list is the inventory) ----------------
+    // Every secret-bearing file in the workspace gets an empty read-only
+    // mask; adding a secret file anywhere means adding a mask here, in the
+    // same change. NOTE: bind targets resolve symlinks — a mask on a symlink
+    // lands on its target. Examples:
+    //   ,"source=${localWorkspaceFolder}/.devcontainer/empty,target=${localWorkspaceFolder}/.env,type=bind,readonly"
+    // Mask a whole DIRECTORY by binding empty.d/ over it (dcc up creates
+    // it). NOT type=tmpfs/volume — podman copies the underlying contents
+    // up into those by default, exposing exactly what the mask should hide:
+    //   ,"source=${localWorkspaceFolder}/.devcontainer/empty.d,target=${localWorkspaceFolder}/sources,type=bind,readonly"
+    // Shadow a host dir with a container-private named volume (e.g. a venv
+    // built for a different distro/python; add the path to
+    // DEVCONTAINER_CHOWN below so entry.sh hands it to vscode):
+    //   ,"source=PROJECTNAME-venv,target=${localWorkspaceFolder}/.venv,type=volume"
+  ],
+
+  "containerEnv": {
+    "CLAUDE_CONFIG_DIR": "/home/vscode/.claude",
+    "DISABLE_AUTOUPDATER": "1",
+    // entry.sh (pid 1) chowns these paths (space-separated) to vscode —
+    // named volumes arrive root-owned on first mount
+    "DEVCONTAINER_CHOWN": "",
+    // the sidecar bridge subnet the firewall allows; must match SUBNET in
+    // dcc.conf
+    "DEVCONTAINER_SUBNET": "172.30.0.0/24"
+    // with a database sidecar, e.g.:
+    //,"TEST_DATABASE_URL": "postgresql://test:test@postgres:5432/test"
+  },
+
+  "features": {
+    "ghcr.io/devcontainers/features/node:1": { "version": "22" },
+    "ghcr.io/devcontainers/features/github-cli:1": {},
+    "ghcr.io/anthropics/devcontainer-features/claude-code:1": {}
+    // project toolchains as needed, e.g.:
+    //,"ghcr.io/devcontainers/features/python:1": { "version": "3.13", "installTools": false }
+  },
+
+  // pid 1 is entry.sh (Dockerfile ENTRYPOINT): firewall as root before
+  // anything else, re-applied on every start — don't let the CLI replace
+  // it with its own sleep loop
+  "overrideCommand": false,
+  "postCreateCommand": "/usr/local/bin/setup-workspace.sh",
+  // rootless podman + keep-id: the agent is unprivileged vscode == the host
+  // user on the bind mount; root (pid 1, dcc's podman exec -u root) holds
+  // the firewall caps. That makes the egress firewall tamper-proof — plus
+  // the standing guarantees: scoped PAT as the only credential, read-only
+  // masks, server-side gates on the forge.
+  "containerUser": "root",
+  "remoteUser": "vscode"
+}

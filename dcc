@@ -1,0 +1,132 @@
+#!/usr/bin/env bash
+# Host-side wrapper for a restricted Claude Code dev container, rootless
+# podman edition (keep-id userns — see template/devcontainer.json).
+#   dcc init <name>     adopt: copy the template to ./.devcontainer and
+#                      substitute <name> into it (run in the workspace root)
+#   dcc [attach] [cmd…] up if needed + interactive shell, or run cmd
+#                      instead of the shell (e.g. dcc attach claude); tmux
+#                      lives on the host — run dcc inside your own setup
+#   dcc up [cmd…]       build/start the container (+ database sidecar if
+#                      configured), optionally run cmd afterwards
+#   dcc rebuild         recreate the dev container (new image, fresh firewall);
+#                      the database and its data are untouched
+#   dcc down            stop the dev container + database sidecar (data and
+#                      containers stay; next dcc up restarts them)
+#   dcc db reset        wipe the database sidecar + its data volume (re-inits
+#                      from .devcontainer/db-init.d on next dcc up)
+#   dcc allow <domain>  temporary egress grant (dies on container restart)
+#   dcc fw              re-run the firewall (e.g. after CDN IPs rotated)
+#   dcc root            root shell (host-side escape hatch; no sudo inside)
+# Needs podman and npx (@devcontainers/cli is fetched on demand). Everything
+# except init reads per-project settings from .devcontainer/dcc.conf, found
+# by walking up from the current directory.
+set -euo pipefail
+
+ENGINE=podman
+# readlink -f: keep the template path correct when invoked via a symlink on PATH
+TEMPLATE="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/template"
+
+if [ "${1:-}" = init ]; then
+    name="${2:?usage: dcc init <name>}"
+    [[ $name =~ ^[a-z0-9][a-z0-9-]*$ ]] || { echo "ERROR: name must be lowercase [a-z0-9-]" >&2; exit 1; }
+    [ ! -e .devcontainer ] || { echo "ERROR: .devcontainer already exists here" >&2; exit 1; }
+    cp -r "$TEMPLATE" .devcontainer
+    grep -rl PROJECTNAME .devcontainer | xargs -r sed -i "s/PROJECTNAME/$name/g"
+    # the claude state dir holds the container's auth token — never commit it
+    if [ -d .git ] && ! grep -qxF '.claude-devcontainer/' .gitignore 2>/dev/null; then
+        echo '.claude-devcontainer/' >> .gitignore
+        echo "added .claude-devcontainer/ to .gitignore"
+    fi
+    echo "initialized .devcontainer for '$name'"
+    echo "review .devcontainer/dcc.conf and devcontainer.json (masks, features, allowlist), then run: dcc"
+    exit 0
+fi
+
+# workspace root: nearest ancestor holding .devcontainer/devcontainer.json
+ROOT=$PWD
+while [ ! -f "$ROOT/.devcontainer/devcontainer.json" ]; do
+    [ "$ROOT" != / ] || { echo "ERROR: no .devcontainer found here or above — adopt with 'dcc init <name>'" >&2; exit 1; }
+    ROOT=$(dirname "$ROOT")
+done
+
+NAME=$(basename "$ROOT")
+SUBNET=172.30.0.0/24
+DB_IMAGE=
+DB_PORT=5433
+DB_ENV="POSTGRES_USER=postgres POSTGRES_PASSWORD=postgres"
+[ ! -f "$ROOT/.devcontainer/dcc.conf" ] || . "$ROOT/.devcontainer/dcc.conf"
+CTR=$NAME-dev
+DB=$NAME-db
+NET=$NAME-net
+VOL=$NAME-pgdata
+
+running() { [ "$($ENGINE inspect -f '{{.State.Running}}' "$1" 2>/dev/null)" = true ]; }
+
+ensure_db() {
+    $ENGINE network inspect "$NET" >/dev/null 2>&1 \
+        || $ENGINE network create --subnet "$SUBNET" "$NET" >/dev/null
+    [ -n "$DB_IMAGE" ] || return 0
+    if ! running "$DB"; then
+        local args=() f e
+        for f in "$ROOT/.devcontainer/db-init.d"/*; do
+            [ -e "$f" ] && args+=(-v "$f:/docker-entrypoint-initdb.d/$(basename "$f"):ro")
+        done
+        for e in $DB_ENV; do args+=(-e "$e"); done
+        $ENGINE start "$DB" >/dev/null 2>&1 || $ENGINE run -d --name "$DB" \
+            --network "$NET" --network-alias postgres \
+            --restart unless-stopped \
+            -v "$VOL:/var/lib/postgresql/data" \
+            -p "127.0.0.1:$DB_PORT:5432" \
+            -e TZ=UTC -e PGTZ=UTC "${args[@]}" \
+            "$DB_IMAGE" >/dev/null
+    fi
+    for _ in $(seq 1 30); do
+        $ENGINE exec "$DB" pg_isready -q -U postgres 2>/dev/null && return 0
+        sleep 1
+    done
+    echo "WARN: database sidecar not ready after 30s" >&2
+}
+
+up() {
+    # bind sources; podman won't create them (empty.d: directory-mask source)
+    mkdir -p "$ROOT/.claude-devcontainer" "$ROOT/.devcontainer/empty.d" \
+        "$HOME/.config/$NAME-devcontainer"
+    ensure_db
+    npx --yes @devcontainers/cli up --docker-path "$ENGINE" \
+        --workspace-folder "$ROOT" "$@"
+}
+
+exec_in() {   # run a command (default: interactive shell) inside as vscode
+    [ $# -gt 0 ] || set -- bash
+    local t=(); [ -t 0 ] && t=(-t)   # no pseudo-tty when scripted/piped
+    exec $ENGINE exec -i "${t[@]}" -u vscode -w "$ROOT" "$CTR" "$@"
+}
+
+[ $# -gt 0 ] || set -- attach
+case "$1" in
+    up)      shift; up; [ $# -eq 0 ] || exec_in "$@" ;;
+    rebuild) up --remove-existing-container ;;
+    down)
+        stopped=
+        for c in "$CTR" "$DB"; do
+            if running "$c"; then $ENGINE stop "$c" >/dev/null && echo "stopped $c"; stopped=1; fi
+        done
+        [ -n "$stopped" ] || echo "nothing running"
+        ;;
+    db)
+        [ "${2:-}" = reset ] || { echo "usage: dcc db reset" >&2; exit 1; }
+        [ -n "$DB_IMAGE" ] || { echo "ERROR: no database configured (DB_IMAGE in dcc.conf)" >&2; exit 1; }
+        $ENGINE rm -f "$DB" >/dev/null 2>&1 || true
+        $ENGINE volume rm "$VOL" >/dev/null 2>&1 || true
+        echo "database wiped — next 'dcc up' re-initializes from .devcontainer/db-init.d"
+        ;;
+    allow)   $ENGINE exec -u root "$CTR" /usr/local/bin/cc-allow.sh "${2:?usage: dcc allow <domain>}" ;;
+    fw)      $ENGINE exec -u root "$CTR" /usr/local/bin/devcontainer-firewall.sh ;;
+    root)    $ENGINE exec -it -u root "$CTR" bash ;;
+    attach)
+        shift
+        running "$CTR" || up
+        exec_in "$@"
+        ;;
+    *) echo "usage: dcc [attach [cmd…]|up [cmd…]|rebuild|down|db reset|allow <domain>|fw|root|init <name>]" >&2; exit 1 ;;
+esac

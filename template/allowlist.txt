@@ -1,0 +1,29 @@
+# Egress allowlist. One domain per line; resolved to IPs at container start
+# by devcontainer-firewall.sh. Baked into the image — add a line via PR, then
+# `dcc rebuild`. For a quick trial use `dcc allow <domain>` (host-run, lasts
+# until container restart), and promote it here if it earns its place.
+#
+# Keep deliberately absent: production hosts, cloud provider APIs, mail/SaaS
+# APIs, container registries — anything the agent should have to ask for.
+
+# Anthropic / Claude Code (login, API, telemetry)
+api.anthropic.com
+claude.ai
+console.anthropic.com
+statsig.anthropic.com
+statsig.com
+sentry.io
+
+# GitHub (git-over-https + API; devcontainer-firewall.sh also adds the
+# published git/api/web ranges from api.github.com/meta)
+github.com
+api.github.com
+codeload.github.com
+uploads.github.com
+objects.githubusercontent.com
+raw.githubusercontent.com
+
+# package registries — keep only what the project uses
+registry.npmjs.org
+#pypi.org
+#files.pythonhosted.org
