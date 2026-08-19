@@ -72,6 +72,11 @@ iptables -P OUTPUT DROP
 iptables -F INPUT
 iptables -A INPUT -i lo -j ACCEPT
 iptables -A INPUT -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
+# published server ports (--publish + DEVCONTAINER_INPUT_PORTS in
+# devcontainer.json)
+for p in ${DEVCONTAINER_INPUT_PORTS:-}; do
+    iptables -A INPUT -p tcp --dport "$p" -j ACCEPT
+done
 iptables -P INPUT DROP
 
 # no v6 allowlist at all; REJECT (not DROP) so dual-stack clients fail

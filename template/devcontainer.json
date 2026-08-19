@@ -19,6 +19,9 @@
     // project bridge, created by dcc (an optional database sidecar resolves
     // as hostname "postgres"; subnet pinned for the firewall rule)
     "--network=PROJECTNAME-net",
+    // host access to a server inside (loopback only); list the port in
+    // DEVCONTAINER_INPUT_PORTS below too, or the firewall drops it:
+    //"--publish=127.0.0.1:8000:8000",
     // hardened: drop everything, add back only what pid-1 root (entry.sh:
     // firewall, chown) needs. NET_ADMIN/NET_RAW: iptables/ipset — root-only,
     // vscode has no caps, which is what makes the firewall tamper-proof.
@@ -69,7 +72,10 @@
     "DEVCONTAINER_CHOWN": "",
     // the sidecar bridge subnet the firewall allows; must match SUBNET in
     // dcc.conf
-    "DEVCONTAINER_SUBNET": "172.30.0.0/24"
+    "DEVCONTAINER_SUBNET": "172.30.0.0/24",
+    // inbound TCP ports the firewall accepts (space-separated) — one per
+    // --publish above, e.g. "8000"
+    "DEVCONTAINER_INPUT_PORTS": ""
     // with a database sidecar, e.g.:
     //,"TEST_DATABASE_URL": "postgresql://test:test@postgres:5432/test"
   },

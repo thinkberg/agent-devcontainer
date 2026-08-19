@@ -203,6 +203,15 @@ CREATE ROLE test LOGIN SUPERUSER PASSWORD 'test';
 CREATE DATABASE test OWNER test;
 ```
 
+## Expose a server port to the host
+
+Off by default. To reach a server running inside (e.g. an API on 8000)
+from the host, edit `.devcontainer/devcontainer.json`: uncomment the
+`--publish=127.0.0.1:8000:8000` line in `runArgs` and list the port in
+`DEVCONTAINER_INPUT_PORTS` (the inbound firewall drops unlisted ports).
+Then `dcc rebuild`. The server must bind `0.0.0.0` inside; the host side
+is loopback-only by design.
+
 For an engine other than PostgreSQL, adapt `ensure_db` in your copy of
 `dcc`.
 
