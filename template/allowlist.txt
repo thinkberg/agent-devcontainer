@@ -22,6 +22,7 @@ codeload.github.com
 uploads.github.com
 objects.githubusercontent.com
 raw.githubusercontent.com
+docs.github.com
 
 # package registries — keep only what the project uses
 registry.npmjs.org
