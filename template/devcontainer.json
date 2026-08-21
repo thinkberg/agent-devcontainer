@@ -67,6 +67,11 @@
   "containerEnv": {
     "CLAUDE_CONFIG_DIR": "/home/vscode/.claude",
     "DISABLE_AUTOUPDATER": "1",
+    // the node feature makes every interactive shell re-link
+    // $NVM_DIR/current (rm + ln); the CLI's env-probe shell and dcc's shell
+    // overlap at start and race on it ("ln: … current/vXX: File exists").
+    // Nobody switches node versions in here — the build-time link stands.
+    "NVM_SYMLINK_CURRENT": "false",
     // entry.sh (pid 1) chowns these paths (space-separated) to vscode —
     // named volumes arrive root-owned on first mount
     "DEVCONTAINER_CHOWN": "",
