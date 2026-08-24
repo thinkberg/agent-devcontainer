@@ -100,13 +100,24 @@ echo "== scope-to-project (approval carries the write scope)"
 PL=planning/plans/2026-08-24-s.md; echo "# s" >"$P/plans/2026-08-24-s.md" 2>/dev/null || { mkdir -p "$P/plans"; echo "# s" >"$P/plans/2026-08-24-s.md"; }
 gq "$P" add plans; gq "$P" commit -q -m plan
 "$H" phase plan --ticket backend#142 >/dev/null && "$H" phase review --plan "$PL" --ponytail-reviewed >/dev/null
-expect_rc 0 "approve with a scope" "$H" approve "$PL" --scope 'backend/*' 'planning/*.md'
+expect_rc 0 "approve with a scope" "$H" approve "$PL" --scope 'backend/*'
 "$H" phase implement >/dev/null
 expect allow "$PW" "$(wj "$B/src/x.py")" "inside scope allowed"
 expect deny:scope-to-project "$PW" "$(wj "$A/app/routes/x.tsx")" "outside scope denied"
 mkdir -p "$A/app/internal" && touch "$A/app/internal/api.md"
 expect deny:scope-to-project "$PW" "$(bj "sed -i s/a/b/ app/app/internal/api.md")" "bypass: sed outside scope denied"
-expect allow "$PW" "$(wj "$P/DONE.md")" "planning md inside scope allowed"
+# a heredoc body is data: markdown quotes, redirects and verbs in it are not write targets (incident 2026-08-24)
+expect allow "$PW" "$(bj "cat > backend/API.md <<'EOF'
+# API
+> Note: never rm -rf app/app
+curl -s http://x | jq . > app/out.json
+mv app/a app/b
+EOF")" "heredoc body is not parsed for write targets"
+expect deny:scope-to-project "$PW" "$(bj "cat <<'EOF' > app/out.md
+x
+EOF")" "heredoc: the redirect on the command line still counts"
+expect allow "$PW" "$(wj "$P/DONE.md")" "planning md writable in implement without being in the scope (archive/DONE step)"
+expect allow "$PW" "$(bj "git -C $P mv plans/2026-08-24-s.md archive/2026-08-24-s.md")" "archiving the plan is allowed in implement"
 
 echo "== stop-checks dispatcher"
 echo y >"$D/ansible/site.yml"   # deployment requirement changed, CHECKLIST not → warn; dirty tree → block

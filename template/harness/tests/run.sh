@@ -211,6 +211,15 @@ expect deny:phase-gate "$PW" "$(tb "git -C $T/backend rm src/x.py")" "bypass: gi
 expect deny:phase-gate "$PW" "$(tb "echo x 1> backend/src/x.py")" "bypass: 1> redirect"
 expect deny:phase-gate "$PW" "$(tb "echo x &> backend/src/x.py")" "bypass: &> redirect"
 expect deny:phase-gate "$PW" "$(tb "echo x > backend/src/x.py")" "bypass: redirect in brainstorm"
+# shell forms the parser must not mistake for write targets (agent feedback 2026-08-24)
+expect allow "$PW" "$(tb "sed -i 's|a|b|' planning/docs/idea.md")" "brainstorm: a | inside the sed script is not a pipe"
+expect allow "$PW" "$(tb "git -C $T/planning commit -m 'x > y; rm -rf z'")" "brainstorm: operators inside a quoted message are text"
+expect allow "$PW" "$(tb "git remote -v && git -C $T/backend status")" "brainstorm: git remote -v is a read"
+expect allow "$PW" "$(tb "mkdir -p \"\$OUT/x\" && echo x > \$OUT/x/y.py")" "brainstorm: an unexpanded \$VAR is the shell's, not judged"
+expect deny:phase-gate "$PW" "$(tb "sed -i 's|a|b|' backend/src/x.py")" "brainstorm: sed -i with a | script still finds its file"
+expect deny:phase-gate "$PW" "$(tb "sed -i -e 's/a/b/' backend/src/x.py")" "brainstorm: sed -i -e"
+expect deny:phase-gate "$PW" "$(tb "echo x >'backend/src/x.py'")" "brainstorm: quoted, attached redirect target"
+expect deny:phase-gate "$PW" "$(tb "cp /tmp/a.py \"backend/src/x.py\"")" "brainstorm: quoted cp target"
 expect deny:phase-gate "$PW" "$(tb "cat <<EOF > backend/src/x.py
 print(1)
 EOF")" "bypass: heredoc in brainstorm"

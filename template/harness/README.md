@@ -41,7 +41,7 @@ lives in the extracarts project, not here.
 | `tests/run.sh` | 183 positive, negative, bypass, fail-closed and overlay-merge cases on a made-up workspace (`tests/fixtures/project.json` is the fixture overlay; `tests/checks.sh` holds the checker ones; `tests/fake-gh` answers `gh` offline). |
 
 ```bash
-harness/tests/run.sh          # needs bash, jq, git; no network, no hugo, no real gh
+harness/tests/run.sh          # needs bash, jq, git, python3; no network, no hugo, no real gh
 ```
 
 The working process, as the agent sees it:

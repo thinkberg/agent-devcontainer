@@ -42,7 +42,7 @@
     {
       "id": "scope-to-project", "class": "enforce", "step": "implement", "trigger": "pre_write",
       "source": "operator's rule: keep changes scoped to the requested project",
-      "text": "In phase implement, writes stay inside the scope the operator gave with the approval (dcc approve <plan> --scope <glob>…); default is the whole workspace.",
+      "text": "In phase implement, writes stay inside the scope the operator gave with the approval (dcc approve <plan> --scope <glob>…) plus what phase review allows (the planning markdown: plans, DONE, archive); default scope is the whole workspace.",
       "check": { "builtin": "phase-gate" }
     },
     {
