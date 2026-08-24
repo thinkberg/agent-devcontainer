@@ -1,0 +1,138 @@
+{
+  "$comment": "Test fixture: a project overlay for a made-up workspace (planning/, specs/, backend/, app/, deployment/, www/). Exercises every overlay feature the engine supports.",
+  "project": {
+    "name": "fixture"
+  },
+  "disabled": [],
+  "protected_paths": [
+    "www/content/*/*-v[0-9]*.md",
+    "www/static/legal/*.pdf",
+    "www/public/*",
+    "out/*",
+    ".claude-devcontainer/settings.json"
+  ],
+  "phases": {
+    "plan_glob": "planning/plans/*.md",
+    "ticket_regex": "^(backend|app|deploy|www)#[0-9]+$",
+    "allow_write": {
+      "brainstorm": [
+        "planning/*.md",
+        "*/docs/*.md"
+      ],
+      "plan": [
+        "planning/*.md",
+        "*/docs/*.md"
+      ],
+      "review": [
+        "planning/*.md",
+        "*/docs/*.md"
+      ]
+    }
+  },
+  "rules": [
+    {
+      "id": "spec-section-stability",
+      "class": "verify",
+      "step": "verify",
+      "trigger": [
+        "post_write",
+        "stop",
+        "gate"
+      ],
+      "text": "Section numbers are stable.",
+      "check": {
+        "paths": [
+          "specs/*.md"
+        ],
+        "run": "{checkers}/spec-section-stability {root}/specs"
+      },
+      "enforcement": "block"
+    },
+    {
+      "id": "review-tick-has-date",
+      "class": "verify",
+      "step": "verify",
+      "trigger": "post_write",
+      "text": "A ticked review box carries a dated note.",
+      "check": {
+        "paths": [
+          "planning/reviews/*.md"
+        ],
+        "run": "{checkers}/review-tick-has-date {root}/{file}"
+      }
+    },
+    {
+      "id": "hugo-warning-clean",
+      "class": "verify",
+      "step": "verify",
+      "trigger": "post_write",
+      "text": "The site build is warning-clean.",
+      "check": {
+        "paths": [
+          "www/hugo.toml",
+          "www/layouts/*",
+          "www/data/*",
+          "www/i18n/*"
+        ],
+        "run": "{checkers}/hugo-warning-clean {root}/www"
+      }
+    },
+    {
+      "id": "checklist-upkeep",
+      "class": "verify",
+      "step": "verify",
+      "trigger": [
+        "stop",
+        "gate"
+      ],
+      "enforcement": "warn",
+      "text": "CHECKLIST.md follows deployment changes.",
+      "check": {
+        "run": "{checkers}/checklist-upkeep {root}/deployment"
+      }
+    },
+    {
+      "id": "hotfix-must-land",
+      "class": "verify",
+      "step": "release",
+      "trigger": [
+        "pre_bash",
+        "gate"
+      ],
+      "text": "No dangling hotfix before ansible.",
+      "check": {
+        "when": "\\bansible-playbook\\b",
+        "run": "{checkers}/hotfix-must-land {root}/deployment"
+      }
+    },
+    {
+      "id": "deployment-clean-at-stop",
+      "class": "verify",
+      "step": "close",
+      "trigger": "stop",
+      "enforcement": "block",
+      "text": "The deployment tree is clean and merged when the session ends.",
+      "check": {
+        "run": "{checkers}/hotfix-must-land {root}/deployment"
+      }
+    },
+    {
+      "id": "versions-repin",
+      "class": "verify",
+      "step": "release",
+      "trigger": [
+        "pre_bash",
+        "gate"
+      ],
+      "text": "versions.yml matches the latest release tags.",
+      "check": {
+        "when": "\\bansible-playbook\\b",
+        "run": "{checkers}/versions-repin {root}/deployment",
+        "repos": {
+          "backend_tag": "backend",
+          "app_tag": "app"
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,12 @@
+#!/bin/bash
+# tests/fake-gh — a gh that answers from files the test sets:
+#   FAKE_ITEMS (project item-list), FAKE_PRS (pr list), FAKE_PRVIEW (pr view),
+#   FAKE_ISSUES (issue list), FAKE_SUBS (api …/sub_issues)
+case "$1 $2" in
+    "project item-list") cat "$FAKE_ITEMS" ;;
+    "pr list")           case "$*" in *"--repo ${FAKE_PRS_REPO:-extracarts/extracarts-backend}"*) cat "$FAKE_PRS" ;; *) echo '[]' ;; esac ;;
+    "pr view")           cat "$FAKE_PRVIEW" ;;
+    "issue list")        case "$*" in *"--repo ${FAKE_ISSUES_REPO:-extracarts/extracarts-backend}"*) cat "$FAKE_ISSUES" ;; *) echo '[]' ;; esac ;;
+    "api repos"*)        case $2 in */sub_issues) jq -r "${4:-.}" "$FAKE_SUBS" 2>/dev/null || cat "$FAKE_SUBS" ;; *) echo '[]' ;; esac ;;
+    *) echo "fake-gh: unhandled: $*" >&2; exit 1 ;;
+esac

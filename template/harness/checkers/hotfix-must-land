@@ -1,0 +1,15 @@
+#!/bin/bash
+# hotfix-must-land <deployment-repo>
+# Idempotent provisioning enforces main. A hotfix branch not merged into
+# main is reverted by the next playbook run; a dirty tree hides one.
+# Reads the hook input on stdin when a hook runs it: an ansible-playbook
+# call with --check is a dry run and passes.
+set -uo pipefail
+repo=${1:?usage: hotfix-must-land <deployment-repo>}
+if [ ! -t 0 ]; then cmd=$(jq -r '.tool_input.command // empty' 2>/dev/null); grep -qE -- '--check' <<<"${cmd:-}" && exit 0; fi
+cd "$repo" || exit 3
+rc=0
+dirty=$(git status --porcelain); [ -z "$dirty" ] || { echo "working tree not clean before ansible: $(wc -l <<<"$dirty") path(s) — commit, stash or drop them first"; rc=1; }
+unmerged=$(git branch -a --no-merged main --format '%(refname:short)' 2>/dev/null | grep -vE '^(origin/HEAD|origin/main|main)$' || true)
+[ -z "$unmerged" ] || { echo "branches with commits main lacks: $(tr '\n' ' ' <<<"$unmerged")— a live-applied hotfix must land on main before ansible runs, or the run reverts it"; rc=1; }
+exit $rc

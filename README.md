@@ -74,6 +74,7 @@ Step 2: Edit the copied files. They belong to your project now:
 | `.devcontainer/Dockerfile` | Extra tools, in the marked section. |
 | `.devcontainer/allowlist.txt` | The domains the agent may connect to. |
 | `.devcontainer/setup-project.sh` | Optional. Your project setup (venv, `npm ci`, …). Make it executable. |
+| `.devcontainer/rules/rules.json` | The project's harness rules: read-only paths, plan and ticket conventions, project checkers (see below). |
 
 To get template updates later, copy the changed template files into your
 `.devcontainer/` again. There is no automatic link. A template change can
@@ -161,6 +162,10 @@ Do not copy transcripts. They can contain secrets.
 | `dcc db reset`       | Delete the database and its data.                                     |
 | `dcc allow <domain>` | Permit egress to one domain, until the next restart.                  |
 | `dcc fw`             | Run the firewall again, for example after CDN addresses change.       |
+| `dcc approve <plan>` | Approve a committed plan; the run may enter phase implement. `--scope <glob>…` limits the writes. |
+| `dcc approve-release <repo> <pr>` | Approve the merge of a Release PR at its current head. |
+| `dcc check`          | Run the harness gate checks inside the container.                     |
+| `dcc harness on\|off` | The harness switch. Off: the hooks make no decisions until `dcc harness on` or the next start. |
 | `dcc root`           | Open a root shell in the container. Use this only for repairs.        |
 
 Notes for daily use:
@@ -272,6 +277,51 @@ it, because the token has no Workflows permission.
   these commands in your own terminal. The agent gives you the commands.
   Secret values never go through an agent session.
 - Everything that needs a browser session.
+
+## The safety harness
+
+The container also controls what the agent must satisfy at each step of
+the work. The image carries a harness (`/usr/local/lib/harness`, from
+`.devcontainer/harness/`) and a managed settings file
+(`/etc/claude-code/managed-settings.json`) that wires its hooks. Claude
+Code reads that file above every other settings level, and
+`allowManagedHooksOnly` means the agent cannot add or remove hooks in its
+own settings. Both are root-owned in the image; a change is a rebuild.
+
+What it holds:
+
+- The working process is a state machine: brainstorm → plan → review →
+  implement. Before implement the agent writes markdown only. The step
+  into implement needs your approval: `dcc approve <plan> [--scope
+  <glob>…]` on the host. A plan edited after approval drops the run back
+  to review.
+- Git hygiene and the publish surface: explicit staging, `-C /absolute`
+  on every mutating git command, no `--no-verify`, no push to
+  `production`, no session links or Claude trailers in anything that
+  reaches GitHub, no remote rewrites.
+- Secrets never pass through the session (`gh secret set`, `sops`, `age`,
+  SQL passwords are denied). Tickets go through the project's scripts.
+- `.devcontainer/` is mounted read-only over itself. The agent proposes
+  policy changes as text; you apply them.
+- Project checks run after edits, at the end of a session, and on
+  demand with `dcc check`.
+
+Your project's own rules — read-only paths, the ticket and plan
+conventions, project checkers — go into `.devcontainer/rules/rules.json`
+(seeded by `dcc init`). The engine merges them over the generic rules.
+Design, rationale and limits: [docs/safety-harness.md](docs/safety-harness.md);
+a complete worked example: [docs/rules-extracarts.md](docs/rules-extracarts.md).
+
+To work without the harness for a while, run `dcc harness off` on the
+host. The hooks then make no decisions and the plain Claude Code
+permission flow applies. The switch is a root-owned marker in
+`/run/harness`: the agent can see it (`harness status`) and cannot flip
+it. To disable one rule only, add its id to `disabled` in
+`.devcontainer/rules/rules.json`.
+
+Approvals and the switch live in `/run/harness` inside the container.
+`/run` is fresh on every start: an approval does not survive a restart,
+and a restart always starts with the harness on.
 
 ## Prior art
 

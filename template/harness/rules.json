@@ -1,0 +1,151 @@
+{
+  "$comment": "Generic rule registry: the engine's rules and the default working process. A project adds its own rules, paths and checkers in <workspace>/.devcontainer/harness/rules.json (seeded by dcc init from template/harness/); the engine merges the two — project rules with the same id replace generic ones, `disabled` removes ids, `protected_paths` extend, `phases` keys override, `project` is the project's own block. class: enforce = a control blocks it | verify = a checker tests the artifact | approve = a human decides | advise = prose only. check.builtin/regex/paths are handled by the hooks; check.run names a checker ({checkers} = generic dir, {project} = the overlay dir). trigger may be a string or an array; `gate` means harness check runs it on demand.",
+  "version": 2,
+  "steps": ["intake", "plan", "implement", "verify", "commit", "publish", "release", "close", "ops"],
+  "phases": {
+    "$comment": "The default working process: brainstorm and discussion (markdown only) -> plan (committed, ponytail-reviewed) -> review by the operator -> approval (a token only the operator can write) -> implement. A project narrows plan_glob, ticket_regex and allow_write.",
+    "order": ["brainstorm", "plan", "review", "implement"],
+    "plan_glob": "*plans/*.md",
+    "ticket_regex": "^[a-z]*#[0-9]+$",
+    "always_allow": ["/tmp/*", "*/.claude/projects/*/memory/*", "/home/vscode/.claude/projects/*"],
+    "allow_write": {
+      "brainstorm": ["*.md"],
+      "plan":       ["*.md"],
+      "review":     ["*.md"],
+      "implement":  ["*"]
+    },
+    "preconditions": {
+      "plan":      "a ticket reference (harness phase plan --ticket <repo>#<n>): every piece of work has a ticket",
+      "review":    "the plan file exists under plan_glob, is committed, has no uncommitted changes, and the agent declares the ponytail review (--ponytail-reviewed)",
+      "implement": "an approval token whose content is the committed blob hash of the plan (dcc approve <plan> [--scope <glob>…] on the host); a plan edited after approval drops the phase back to review"
+    }
+  },
+  "rules": [
+    {
+      "id": "phase-gate", "class": "enforce", "step": "plan", "trigger": "pre_write",
+      "source": "the operator's working process",
+      "text": "Writes are allowed only where the current phase permits. The phase advances through harness phase; implement needs the operator's approval token.",
+      "check": { "builtin": "phase-gate" }
+    },
+    {
+      "id": "plan-file-first", "class": "enforce", "step": "plan", "trigger": "pre_write",
+      "source": "operator's rule; incident 2026-07-21 (a plan approved in chat, written down afterwards)",
+      "text": "Code edits happen in phase implement only, which needs a committed plan file and the operator's approval token.",
+      "check": { "builtin": "phase-gate" }
+    },
+    {
+      "id": "plan-approval-not-go", "class": "enforce", "step": "plan", "trigger": "pre_write",
+      "source": "operator's rule: plan approval in a conversation is not permission to implement",
+      "text": "Plan approval is a token the operator writes on the host. Without it the phase stays review and code writes are denied.",
+      "check": { "builtin": "phase-gate" }
+    },
+    {
+      "id": "scope-to-project", "class": "enforce", "step": "implement", "trigger": "pre_write",
+      "source": "operator's rule: keep changes scoped to the requested project",
+      "text": "In phase implement, writes stay inside the scope the operator gave with the approval (dcc approve <plan> --scope <glob>…); default is the whole workspace.",
+      "check": { "builtin": "phase-gate" }
+    },
+    {
+      "id": "git-stage-explicit", "class": "enforce", "step": "commit", "trigger": "pre_bash",
+      "source": "operator's rule; incident 2026-07-22 (add -A swept another session's edits into a commit)",
+      "text": "Stage exact paths. Never git add -A/--all/-u/. or git commit -a.",
+      "check": { "regex": [
+        "\\bgit(\\s+-[cC]\\s+\\S+)*\\s+add\\s+(\\S+\\s+)*(-A|--all|-u|--update|\\.|:/)(\\s|$)",
+        "\\bgit(\\s+-[cC]\\s+\\S+)*\\s+commit\\s+(\\S+\\s+)*(-a|--all|-[a-zA-Z]*a[a-zA-Z]*)(\\s|$)" ] }
+    },
+    {
+      "id": "git-c-absolute", "class": "enforce", "step": "commit", "trigger": "pre_bash",
+      "source": "operator's rule; incident 2026-07-17 (a cd did not persist between calls; a commit landed on the wrong repo's main)",
+      "text": "Every mutating git command names its repo with -C /absolute/path.",
+      "check": { "builtin": "git-c-absolute" }
+    },
+    {
+      "id": "git-no-bypass", "class": "enforce", "step": "commit", "trigger": "pre_bash",
+      "source": "operator's rule: never disable signing; harness self-protection",
+      "text": "Never --no-verify, --no-gpg-sign, or a hooksPath/gpgsign override.",
+      "check": { "regex": [
+        "--no-verify|--no-gpg-sign|core\\.hooksPath|commit\\.gpgsign=false|gpg\\.program=",
+        "\\bgit(\\s+-[cC]\\s+\\S+)*\\s+commit\\s+(\\S+\\s+)*-n(\\s|$)" ] }
+    },
+    {
+      "id": "no-production-push", "class": "enforce", "step": "release", "trigger": "pre_bash",
+      "source": "operator's release convention: main goes to production through a Release PR",
+      "text": "Never push to production. Open a 'Release: …' PR from main and merge it.",
+      "check": { "regex": "\\bgit(\\s+-[cC]\\s+\\S+)*\\s+push\\b[^|;&]*\\bproduction\\b" }
+    },
+    {
+      "id": "git-remote-stable", "class": "enforce", "step": "publish", "trigger": "pre_bash",
+      "source": "operator's rule: on push failure stop and hand over, never swap the transport",
+      "text": "Do not rewrite remotes, push to an explicit URL, or change the credential helper. On failure, stop and hand over.",
+      "check": { "regex": [
+        "\\bgit(\\s+-[cC]\\s+\\S+)*\\s+remote\\s+(set-url|add|remove|rm|rename)\\b",
+        "\\bgit(\\s+-[cC]\\s+\\S+)*\\s+push\\s+(\\S+\\s+)*https?://",
+        "credential\\.helper|url\\.[^ ]*\\.[iI]nstead[oO]f" ] }
+    },
+    {
+      "id": "no-session-links", "class": "enforce", "step": "publish", "trigger": "pre_bash",
+      "source": "operator's rule; incident 2026-08-22 (45 PR bodies and 162 commit messages carried session links)",
+      "text": "No claude.ai session links, Co-Authored-By: Claude, or 'Generated with Claude Code' in anything that reaches GitHub.",
+      "check": {
+        "when": "\\bgit(\\s+-[cC]\\s+\\S+)*\\s+(commit|notes|tag|push)\\b|\\bgh\\s+(pr|issue|api|release|repo)\\b",
+        "regex": "claude\\.ai/code/|session_01[A-Za-z0-9]{22}|Co-Authored-By:\\s*Claude|Generated with \\[?Claude|Claude-Session:" }
+    },
+    {
+      "id": "tickets-via-bin", "class": "enforce", "step": "intake", "trigger": "pre_bash",
+      "source": "operator's ticket workflow: create and change tickets only through the project's scripts; raw gh for comments, milestones and body edits",
+      "text": "Ticket create/close/status changes go through the project's ticket scripts. Raw gh is for comments, milestones and body edits only. (Disable in a project without such scripts.)",
+      "check": { "regex": [
+        "\\bgh\\s+issue\\s+(create|close|reopen|delete|transfer)\\b",
+        "\\bgh\\s+project\\s+(item-add|item-edit|item-delete|item-archive|item-create|field-create|field-delete)\\b",
+        "\\bgh\\s+api\\s+(\\S+\\s+)*\\S*/issues(/[0-9]+)?(\\s|$)[^|;&]*(-X|--method|-f|-F|--field|--raw-field|--input)\\b",
+        "\\bgh\\s+api\\s+(\\S+\\s+)*(-X|--method)\\s+(POST|PATCH|PUT|DELETE)\\s+(\\S+\\s+)*\\S*/issues(/[0-9]+)?(\\s|$)" ] }
+    },
+    {
+      "id": "check-tickets-after-change", "class": "verify", "step": "close", "trigger": "stop",
+      "source": "operator's ticket workflow: after any ticket change run the consistency check and fix or flag what it reports",
+      "text": "A session that changed tickets cannot end before the ticket check ran clean afterwards.",
+      "check": { "dirty_on": "\\bbin/(add-ticket|set-status|close-ticket|update-estimates)\\b", "clean_on": "\\bbin/check-tickets\\b", "max_blocks": 3 }
+    },
+    {
+      "id": "secrets-operator-only", "class": "enforce", "step": "ops", "trigger": "pre_bash",
+      "source": "operator's rule; credentials were burned once because secret values passed through a transcript",
+      "text": "Secret values never pass through the session: no gh secret set, sops, age, or SQL password changes. Hand the operator the commands.",
+      "check": { "icase": true, "regex": [
+        "\\bgh\\s+(secret|variable)\\s+(set|delete|remove)\\b",
+        "(^|[;&|(]\\s*|\\benv\\s+(\\S+=\\S+\\s+)*)sops(\\s|$)",
+        "(^|[;&|(]\\s*|\\benv\\s+(\\S+=\\S+\\s+)*)age\\s+(-d|--decrypt|-e|--encrypt|-i|--identity|-r|--recipient)\\b",
+        "\\b(ALTER|CREATE)\\s+(ROLE|USER)\\b[^;]*\\bPASSWORD\\b" ] }
+    },
+    {
+      "id": "db-no-improvise", "class": "enforce", "step": "implement", "trigger": "pre_bash",
+      "source": "operator's rule; incident 2026-08-22 (a replacement database was installed instead of asking)",
+      "text": "When the dev database is unreachable, stop and ask. Never install or start a replacement database.",
+      "check": { "regex": [
+        "\\binitdb\\b|\\bpg_ctl\\b|\\bpg_ctlcluster\\b",
+        "pip3?\\s+install\\b[^|;&]*\\b(pgserver|postgresql-wheel|testing\\.postgresql)\\b",
+        "\\bdocker\\s+run\\b[^|;&]*\\bpostgres" ] }
+    },
+    {
+      "id": "protected-paths", "class": "enforce", "step": "implement", "trigger": "pre_write",
+      "source": "harness self-protection: policy files, workflows, the agent's own settings. A project extends this with protected_paths.",
+      "text": "These paths are read-only for the agent. The guarantee is the read-only bind mount in devcontainer.json; this hook is the early feedback.",
+      "check": { "paths": [
+        ".devcontainer/*", "*/.devcontainer/*",
+        ".github/workflows/*", "*/.github/workflows/*",
+        ".claude/settings*.json", "*/.claude/settings*.json",
+        "/home/vscode/.claude/settings.json", "/etc/claude-code/*", "/usr/local/lib/harness/*" ] }
+    },
+    {
+      "id": "release-ships-tip", "class": "approve", "step": "release", "trigger": "pre_bash",
+      "source": "operator's rule: a Release PR merges the tip of main at merge time, not the snapshot at opening",
+      "text": "Before merging a Release PR, list what main gained since it was opened and ask for the operator's approval; the token is bound to the PR head SHA.",
+      "check": { "when": "\\bgh\\s+pr\\s+merge\\b", "run": "{checkers}/release-approved" }
+    },
+    { "id": "ponytail-review-plan", "class": "approve", "step": "plan", "source": "operator's rule", "text": "ponytail-review runs over the plan before implementation; trims are folded in. Declared with --ponytail-reviewed; no mechanical proof.", "status": "declaration recorded in the run state" },
+    { "id": "ask-dont-assume", "class": "advise", "step": "implement", "source": "operator's rule", "text": "If you implement code, do not assume things, ask." },
+    { "id": "check-library-docs", "class": "advise", "step": "implement", "source": "operator's rule", "text": "Verify library behavior against the official docs for the pinned version before relying on it." },
+    { "id": "no-over-engineering", "class": "advise", "step": "implement", "source": "operator's rule", "text": "Do not over-implement or over-engineer. Use what exists or ask." },
+    { "id": "focused-tests-first", "class": "advise", "step": "verify", "source": "operator's rule", "text": "Focused tests for the change, then broader ones across boundaries." },
+    { "id": "plan-format-ste", "class": "advise", "step": "plan", "source": "operator's rule", "text": "Plans use Simplified Technical English and carry exact paths, identifiers and commands so an agent can execute them without extra lookup." }
+  ]
+}

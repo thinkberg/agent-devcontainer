@@ -15,6 +15,16 @@
 #   dcc db reset        wipe the database sidecar + its data volume (re-inits
 #                      from .devcontainer/db-init.d on next dcc up)
 #   dcc allow <domain>  temporary egress grant (dies on container restart)
+#   dcc approve <plan> [--scope <glob>…]
+#                       approve a committed plan: lets the run enter phase
+#                       implement, optionally limited to a write scope
+#   dcc approve-release <repo-dir> <pr>
+#                       approve the merge of a Release PR at its current head
+#   dcc check           run the harness gate checks (harness check) inside
+#   dcc harness [on|off|status]
+#                       the operator's runtime switch: off = the hooks make
+#                       no decisions (plain Claude Code permissions apply)
+#                       until `dcc harness on` or the next container start
 #   dcc fw              re-run the firewall (e.g. after CDN IPs rotated)
 #   dcc root            root shell (host-side escape hatch; no sudo inside)
 # Needs podman and npx (@devcontainers/cli is fetched on demand). Everything
@@ -121,6 +131,32 @@ case "$1" in
         echo "database wiped — next 'dcc up' re-initializes from .devcontainer/db-init.d"
         ;;
     allow)   $ENGINE exec -u root "$CTR" /usr/local/bin/cc-allow.sh "${2:?usage: dcc allow <domain>}" ;;
+    # approvals are root-only inside: the token lands in /run/harness/approvals,
+    # which vscode reads and cannot write. Root in the userns is not the owner
+    # of the workspace files, so git needs safe.directory for the blob hash.
+    approve)
+        shift; $ENGINE exec -u root -w "$ROOT" -e CLAUDE_PROJECT_DIR="$ROOT" \
+            -e GIT_CONFIG_COUNT=1 -e GIT_CONFIG_KEY_0=safe.directory -e GIT_CONFIG_VALUE_0='*' \
+            "$CTR" /usr/local/lib/harness/bin/harness approve "$@" ;;
+    approve-release)
+        shift; $ENGINE exec -u root -w "$ROOT" -e CLAUDE_PROJECT_DIR="$ROOT" \
+            -e GH_TOKEN="$(cat "$HOME/.config/$NAME-devcontainer/gh-token")" \
+            "$CTR" /usr/local/lib/harness/bin/harness approve-release "$@" ;;
+    # GH_TOKEN reaches interactive shells only (bashrc); a podman exec is not
+    # one, and the board checkers need gh — hand the token over explicitly
+    check)   shift; $ENGINE exec -u vscode -w "$ROOT" -e CLAUDE_PROJECT_DIR="$ROOT" \
+                 -e GH_TOKEN="$(cat "$HOME/.config/$NAME-devcontainer/gh-token" 2>/dev/null)" \
+                 "$CTR" /usr/local/lib/harness/bin/harness check "$@" ;;
+    # the switch is a root-owned marker under /run/harness: the agent sees it
+    # (harness status) and cannot flip it; /run is fresh on every start
+    harness)
+        case "${2:-status}" in
+            off)    $ENGINE exec -u root "$CTR" sh -c 'mkdir -p /run/harness && touch /run/harness/off' \
+                        && echo "harness OFF — until 'dcc harness on' or the next container start" ;;
+            on)     $ENGINE exec -u root "$CTR" rm -f /run/harness/off && echo "harness on" ;;
+            status) $ENGINE exec -u vscode -w "$ROOT" -e CLAUDE_PROJECT_DIR="$ROOT" "$CTR" /usr/local/lib/harness/bin/harness status ;;
+            *) echo "usage: dcc harness [on|off|status]" >&2; exit 1 ;;
+        esac ;;
     fw)      $ENGINE exec -u root "$CTR" /usr/local/bin/devcontainer-firewall.sh ;;
     root)    $ENGINE exec -it -u root "$CTR" bash ;;
     attach)
@@ -128,5 +164,5 @@ case "$1" in
         running "$CTR" || up
         exec_in "$@"
         ;;
-    *) echo "usage: dcc [attach [cmd…]|up [cmd…]|rebuild|down|db reset|allow <domain>|fw|root|init <name>]" >&2; exit 1 ;;
+    *) echo "usage: dcc [attach [cmd…]|up [cmd…]|rebuild|down|db reset|allow <domain>|approve <plan> [--scope g…]|approve-release <repo> <pr>|check|harness [on|off|status]|fw|root|init <name>]" >&2; exit 1 ;;
 esac

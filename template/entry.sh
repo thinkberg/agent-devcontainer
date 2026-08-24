@@ -13,5 +13,13 @@ set -euo pipefail
 # (DEVCONTAINER_CHOWN: space-separated absolute paths, devcontainer.json)
 for d in ${DEVCONTAINER_CHOWN:-}; do chown vscode: "$d"; done
 
+# harness run state: the agent writes its phase into agent/, the operator's
+# approvals land in approvals/ via `dcc approve` (podman exec -u root) —
+# vscode can read them and cannot write them. /run is fresh on every start:
+# an approval does not survive a container restart.
+mkdir -p /run/harness/agent /run/harness/approvals
+chown vscode: /run/harness/agent
+chmod 755 /run/harness /run/harness/approvals
+
 touch /run/devcontainer-entry-done   # setup-workspace.sh waits for this
 exec sleep infinity
