@@ -139,7 +139,7 @@ policy.** These keys matter most:
 | `permissions.deny` | Deny reads, writes and commands by pattern |
 | `allowManagedPermissionRulesOnly: true` | Ignore permission rules from user, project and `--allowedTools` |
 | `permissions.disableBypassPermissionsMode: "disable"` | No `--dangerously-skip-permissions` |
-| `allowManagedHooksOnly: true` | Only the harness hooks run. The agent cannot add or remove hooks. |
+| `allowManagedHooksOnly: true` | Only the harness hooks run. The agent cannot add or remove hooks. Also narrows `statusLine`, `subagentStatusLine` and `fileSuggestion` to managed settings — the managed file delegates `statusLine` to `~/.claude/statusline-command.sh`. |
 | `strictPluginOnlyCustomization` | No skills, agents, hooks or MCP servers from user and project files |
 | `allowManagedMcpServersOnly`, `allowedMcpServers` | Only the MCP servers the harness names |
 | `disableSideloadFlags: true` | Reject `--plugin-dir`, `--plugin-url`, `--agents`, `--mcp-config` |
