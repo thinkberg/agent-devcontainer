@@ -1,0 +1,19 @@
+#!/bin/bash
+# spec-section-stability <specs-repo> [--base REF]
+# Numbered headings (## 3, ### 3.2 …) are stable cross-reference ids.
+# Every number present in the base version of a changed file must still
+# exist. A renumbering or a deleted section without its header shows as a
+# missing number. Default base: HEAD vs working tree; --base compares
+# REF..HEAD (for the gate).
+set -uo pipefail
+repo=${1:?usage: spec-section-stability <repo> [--base REF]}; base=; [ "${2:-}" = --base ] && base=${3:?}
+cd "$repo" || exit 3
+if [ -n "$base" ]; then files=$(git diff --name-only "$base"..HEAD -- '*.md'); old() { git show "$base:$1" 2>/dev/null; }; new() { git show "HEAD:$1" 2>/dev/null; }
+else files=$(git diff --name-only HEAD -- '*.md'); old() { git show "HEAD:$1" 2>/dev/null; }; new() { cat "$1" 2>/dev/null; }; fi
+nums() { grep -oE '^#{1,6} *[0-9]+(\.[0-9]+)*' | grep -oE '[0-9]+(\.[0-9]+)*' | sort -u; }
+rc=0
+for f in $files; do
+    missing=$(comm -23 <(old "$f" | nums) <(new "$f" | nums))
+    [ -z "$missing" ] || { for n in $missing; do echo "$f: section $n disappeared — sections are never renumbered; a deleted section keeps its header with a (Deleted in Vxx) marker"; done; rc=1; }
+done
+exit $rc

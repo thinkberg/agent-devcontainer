@@ -1,0 +1,22 @@
+#!/bin/bash
+# versions-repin <deployment-repo>
+# ansible/versions.yml pins the stack's image tags. After a CI deploy
+# (which updates Portainer directly) it must be re-pinned, or the next
+# playbook run rolls production back. Offline proxy: each pinned tag
+# must be the latest v* tag of its code repo (rules.json check.repos maps
+# the yml key to the sibling repo). The live comparison is
+# extracarts-deployment/bin/stack-status.py.
+set -uo pipefail
+HERE=$(dirname "$(readlink -f "${BASH_SOURCE[0]}")"); RULES=${HARNESS_RULES:-$HERE/../rules.json}
+repo=${1:?usage: versions-repin <deployment-repo>}; yml=$repo/ansible/versions.yml
+# from a hook: an ansible --check dry run cannot roll anything back
+if [ ! -t 0 ]; then cmd=$(jq -r '.tool_input.command // empty' 2>/dev/null); grep -qE -- '--check' <<<"${cmd:-}" && exit 0; fi
+[ -f "$yml" ] || { echo "$yml missing"; exit 3; }
+rc=0
+while IFS=$'\t' read -r key sibling; do
+    pinned=$(grep -E "^$key:" "$yml" | awk '{print $2}')
+    latest=$(git -C "$repo/../$sibling" tag --list 'v*' --sort=-v:refname 2>/dev/null | head -1)
+    [ -n "$latest" ] || { echo "$sibling: no v* tags found"; rc=3; continue; }
+    [ "$pinned" = "$latest" ] || { echo "$key: versions.yml pins $pinned but $sibling's latest release tag is $latest — re-pin after the CI deploy, or the next playbook run rolls production back"; rc=1; }
+done < <(jq -r '.rules[] | select(.id=="versions-repin") | .check.repos | to_entries[] | [.key, .value] | @tsv' "$RULES")
+exit $rc

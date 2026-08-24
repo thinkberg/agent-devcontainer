@@ -19,6 +19,20 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-ins
 #         | tar -xz -C /usr/local/bin hugo
 # ----------------------------------------------------------------------------
 
+# ---- safety harness -------------------------------------------------------
+# The engine (hooks, checkers, generic rules) and the managed settings that
+# wire it. Both root-owned in the image: vscode can run them, not change
+# them; a change is a host-side rebuild, like allowlist.txt. Claude Code
+# reads /etc/claude-code/managed-settings.json above every other settings
+# level, and allowManagedHooksOnly means the agent's own settings cannot
+# add or remove hooks. The project's rules stay in the workspace
+# (.devcontainer/rules/, mounted read-only by devcontainer.json).
+COPY harness/ /usr/local/lib/harness/
+COPY managed-settings.json /etc/claude-code/managed-settings.json
+RUN rm -rf /usr/local/lib/harness/tests \
+    && chmod -R u=rwX,go=rX /usr/local/lib/harness /etc/claude-code \
+    && ln -s /usr/local/lib/harness/bin/harness /usr/local/bin/harness
+
 # NOTE: the firewall script name must stay unique — the claude-code feature
 # installs its own /usr/local/bin/init-firewall.sh after this Dockerfile runs
 COPY allowlist.txt /etc/devcontainer-allowlist.txt

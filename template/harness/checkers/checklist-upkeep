@@ -1,0 +1,14 @@
+#!/bin/bash
+# checklist-upkeep <deployment-repo> [--base REF]
+# A change to a deployment requirement (ansible/, portainer.yml,
+# workflows, compose files) changes CHECKLIST.md in the same change.
+# Heuristic: soft rule, the dispatcher warns.
+set -uo pipefail
+repo=${1:?usage: checklist-upkeep <deployment-repo> [--base REF]}; base=; [ "${2:-}" = --base ] && base=${3:?}
+cd "$repo" || exit 3
+files=$( { git status --porcelain | awk '{print $NF}'; [ -n "$base" ] && git diff --name-only "$base"..HEAD; } | sort -u)
+req=$(grep -E '^(ansible/|portainer\.yml|\.github/workflows/|docker-compose)' <<<"$files" || true)
+[ -n "$req" ] || exit 0
+grep -qx 'CHECKLIST.md' <<<"$files" && exit 0
+echo "deployment requirements changed ($(tr '\n' ' ' <<<"$req")) but CHECKLIST.md did not — it is the living doc; update it in the same change"
+exit 1

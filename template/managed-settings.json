@@ -1,0 +1,111 @@
+{
+  "permissions": {
+    "deny": [
+      "Edit(//etc/claude-code/**)",
+      "Write(//etc/claude-code/**)",
+      "Edit(//usr/local/lib/harness/**)",
+      "Write(//usr/local/lib/harness/**)",
+      "Edit(//home/vscode/.claude/settings.json)",
+      "Write(//home/vscode/.claude/settings.json)",
+      "Edit(./.devcontainer/**)",
+      "Write(./.devcontainer/**)"
+    ],
+    "disableBypassPermissionsMode": "disable"
+  },
+  "allowManagedHooksOnly": true,
+  "disableSideloadFlags": true,
+  "attribution": {
+    "commit": "",
+    "pr": "",
+    "sessionUrl": false
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/usr/local/lib/harness/hooks/pre-bash.sh",
+            "timeout": 10
+          },
+          {
+            "type": "command",
+            "command": "/usr/local/lib/harness/hooks/pre-write.sh",
+            "timeout": 10
+          }
+        ]
+      },
+      {
+        "matcher": "Edit|Write|MultiEdit|NotebookEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/usr/local/lib/harness/hooks/pre-write.sh",
+            "timeout": 10
+          }
+        ]
+      },
+      {
+        "matcher": "Read",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "input=$(cat); f=$(printf \"%s\" \"$input\" | jq -r \".tool_input.file_path // empty\"); root=\"${CLAUDE_PROJECT_DIR:-$(printf \"%s\" \"$input\" | jq -r \".cwd // empty\")}\"; if [ -z \"$f\" ] || [ -z \"$root\" ]; then exit 0; fi; rf=$(realpath -m -- \"$f\" 2>/dev/null || printf \"%s\" \"$f\"); rr=$(realpath -m -- \"$root\" 2>/dev/null || printf \"%s\" \"$root\"); case \"$rf\" in \"$rr\"|\"$rr\"/*) exit 0 ;; *) printf \"{\\\"hookSpecificOutput\\\":{\\\"hookEventName\\\":\\\"PreToolUse\\\",\\\"permissionDecision\\\":\\\"ask\\\",\\\"permissionDecisionReason\\\":\\\"Read outside the project directory\\\"}}\" ;; esac",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/usr/local/lib/harness/hooks/ticket-state.sh post",
+            "timeout": 10
+          }
+        ]
+      },
+      {
+        "matcher": "Edit|Write|MultiEdit|NotebookEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/usr/local/lib/harness/hooks/post-write.sh",
+            "timeout": 90
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/usr/local/lib/harness/hooks/ticket-state.sh stop",
+            "timeout": 10
+          },
+          {
+            "type": "command",
+            "command": "/usr/local/lib/harness/hooks/stop-checks.sh",
+            "timeout": 90
+          }
+        ]
+      }
+    ],
+    "PostToolUseFailure": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "jq -e '.tool_input.command // \"\" | test(\"git (-C [^ ]+ )?commit\")' >/dev/null && printf %s '{\"hookSpecificOutput\":{\"hookEventName\":\"PostToolUseFailure\",\"additionalContext\":\"A git commit just failed. Send the user a push notification now (PushNotification tool) naming the repository and the failure reason, then continue per the project git rules.\"},\"systemMessage\":\"git commit failed - Claude sends a push notification\"}' || true",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}

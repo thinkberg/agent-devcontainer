@@ -1,0 +1,114 @@
+#!/bin/bash
+# harness/bin/harness — the agent's interface to the run state, and the
+# operator's approval command.
+#   harness status                 where the run is
+#   harness steps                  the working process, current phase marked
+#   harness rules [--step <name>]  the rules, by step of the process
+#   harness phase brainstorm|plan|review|implement [--ticket <repo>#<n>]
+#                 [--plan <path>] [--ponytail-reviewed]
+#   harness approve <plan-path>   operator only (dcc approve on the host);
+#                                 writes the token into the root-owned dir
+# State: $HARNESS_AGENT_DIR/run.json (agent-writable), tokens in
+# $HARNESS_APPROVAL_DIR (root-only in the container). Each transition
+# checks its precondition mechanically; a failed check exits 1 and says why.
+set -euo pipefail
+HERE=$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")
+find_root() {   # nearest ancestor with .devcontainer/devcontainer.json, like dcc; else the cwd
+    local d=$PWD; while [ ! -f "$d/.devcontainer/devcontainer.json" ]; do [ "$d" != / ] || { echo "$PWD"; return; }; d=$(dirname "$d"); done; echo "$d"; }
+ROOT=$(realpath -m -- "${CLAUDE_PROJECT_DIR:-$(find_root)}")
+. "$HERE/../lib.sh"
+STATE=$AGENT/run.json
+die() { echo "harness: $*" >&2; exit 1; }
+[ -n "$RULES" ] || die "rule registry unreadable or project overlay corrupt (generic: $GENERIC_RULES, project: $PROJECT_RULES)"
+
+state() { [ -f "$STATE" ] && jq -r "$1 // empty" "$STATE" || true; }
+
+case ${1:-} in
+    status)
+        if harness_off; then echo "harness: OFF — the operator switched it off (dcc harness off); hooks make no decisions until 'dcc harness on' or the next container start"; else echo "harness: on"; fi
+        echo "rules:  $(jq '.rules|length' "$RULES") ($(jq -r '.project.name // "no project overlay"' "$RULES"))"
+        phase=$(state .phase); echo "phase:  ${phase:-brainstorm (no run state)}  effective: $(effective_phase)"
+        echo "ticket: $(state .ticket)"; plan=$(state .plan); echo "plan:   $plan"
+        if [ -n "$plan" ]; then
+            blob=$(plan_blob "$plan"); echo "plan committed blob: ${blob:-NO (uncommitted or dirty)}"
+            tok=$(approval_token "$plan")
+            if [ -f "$tok" ]; then [ "$(token_blob "$tok")" = "$blob" ] && echo "approval: valid  scope: $(token_scope "$tok" | tr '\n' ' ')" || echo "approval: STALE (plan changed after approval)"
+            else echo "approval: none"; fi
+        fi ;;
+    phase)
+        shift; target=${1:?usage: harness phase <name> [--ticket X] [--plan P] [--ponytail-reviewed]}; shift
+        jq -e --arg t "$target" '.phases.order | index($t)' "$RULES" >/dev/null || die "unknown phase '$target'"
+        ticket=$(state .ticket); plan=$(state .plan); ponytail=$(state .ponytail_reviewed)
+        while [ $# -gt 0 ]; do case $1 in
+            --ticket) ticket=$2; shift 2 ;; --plan) plan=$2; shift 2 ;;
+            --ponytail-reviewed) ponytail=true; shift ;; *) die "unknown option $1" ;;
+        esac; done
+        idx() { jq -r --arg t "$1" '.phases.order | index($t)' "$RULES"; }
+        if [ "$(idx "$target")" -ge "$(idx plan)" ]; then
+            re=$(jq -r .phases.ticket_regex "$RULES")
+            [[ ${ticket:-} =~ $re ]] || die "phase $target needs a ticket (--ticket backend#12); $(jq -r .phases.preconditions.plan "$RULES")"
+        fi
+        if [ "$(idx "$target")" -ge "$(idx review)" ]; then
+            glob=$(jq -r .phases.plan_glob "$RULES")
+            [ -n "${plan:-}" ] || die "phase $target needs --plan <path> under $glob"
+            plan=${plan#"$ROOT"/}
+            [[ $plan == $glob ]] || die "plan '$plan' is not under $glob"
+            [ -f "$ROOT/$plan" ] || die "plan file $plan does not exist"
+            blob=$(plan_blob "$plan"); [ -n "$blob" ] || die "plan $plan is not committed, or has uncommitted changes — commit it first (explicit path, -C absolute)"
+            [ "${ponytail:-}" = true ] || die "phase $target needs --ponytail-reviewed: run ponytail-review over $plan, fold the trims in, commit, then declare it"
+        fi
+        if [ "$target" = implement ]; then
+            tok=$(approval_token "$plan")
+            [ -f "$tok" ] || die "phase implement needs the operator's approval: ask for 'dcc approve $plan' on the host"
+            [ "$(token_blob "$tok")" = "$blob" ] || die "approval is stale: $plan changed after it was approved — ask for a new 'dcc approve $plan'"
+        fi
+        mkdir -p "$AGENT"
+        jq -n --arg p "$target" --arg t "${ticket:-}" --arg pl "${plan:-}" --arg py "${ponytail:-false}" --arg at "$(date -u +%FT%TZ)" \
+            '{phase:$p, ticket:$t, plan:$pl, ponytail_reviewed:($py=="true"), since:$at}' >"$STATE"
+        echo "phase: $target${ticket:+  ticket: $ticket}${plan:+  plan: $plan}" ;;
+    approve)
+        shift; plan=${1:?usage: harness approve <plan-path> [--scope <glob> ...]}; shift; plan=${plan#"$ROOT"/}
+        scope=(); [ "${1:-}" = --scope ] && { shift; scope=("$@"); }
+        blob=$(plan_blob "$plan"); [ -n "$blob" ] || die "plan $plan is not committed (or dirty) — nothing to approve"
+        mkdir -p "$APPROV"
+        jq -n --arg b "$blob" --argjson s "$(printf '%s\n' "${scope[@]:-*}" | jq -R . | jq -s .)" '{blob:$b, scope:$s}' >"$(approval_token "$plan")"
+        echo "approved $plan at blob $blob, scope: ${scope[*]:-*}" ;;
+    approve-release)
+        repo=${2:?usage: harness approve-release <repo-dir> <pr>}; pr=${3:?}
+        head=$(cd "$repo" && gh pr view "$pr" --json headRefOid,baseRefName) || die "cannot read PR $pr in $repo"
+        [ "$(jq -r .baseRefName <<<"$head")" = production ] || die "PR $pr does not target production"
+        mkdir -p "$APPROV"; printf '%s' "$(jq -r .headRefOid <<<"$head")" >"$APPROV/release-$(basename "$(realpath "$repo")")-$pr.approved"
+        echo "approved release PR $pr at $(jq -r .headRefOid <<<"$head" | cut -c1-7)" ;;
+    steps)
+        cur=$(effective_phase); declared=$(state .phase)
+        echo "The working process — current phase: $cur${declared:+ (declared: $declared)}"
+        echo
+        for ph in $(jq -r '.phases.order[]' "$RULES"); do
+            mark=" "; [ "$ph" = "$cur" ] && mark="▶"
+            printf '%s %-11s writes: %s\n' "$mark" "$ph" "$(jq -r --arg p "$ph" '.phases.allow_write[$p] // [] | join(" ")' "$RULES")"
+            pre=$(jq -r --arg p "$ph" '.phases.preconditions[$p] // empty' "$RULES"); [ -z "$pre" ] || printf '  %-11s enter with: %s\n' "" "$pre"
+        done
+        echo
+        echo "  brainstorm → plan → review → implement: the agent advances with 'harness phase <name>';"
+        echo "  review → implement needs the operator's token (dcc approve <plan> [--scope …] on the host)."
+        echo "  After implement the steps verify, commit, publish, release, close are rule-guarded: 'harness rules --step <name>'."
+        echo "  Rule steps: $(jq -r '.steps | join(" ")' "$RULES")" ;;
+    rules)
+        shift; step=; [ "${1:-}" = --step ] && step=${2:?usage: harness rules [--step <name>]}
+        jq -r --arg st "$step" '
+          def mech: if .check.builtin then "hook:" + .check.builtin elif .check.regex then "hook:regex" elif .check.paths and (.check.run|not) then "hook:paths"
+                    elif .check.run then "checker" elif .check.dirty_on then "hook:stop" else (.status // "prose") end;
+          .rules[] | select($st == "" or .step == $st)
+          | [.step, .class, .id, mech, (.text | .[0:80])] | @tsv' "$RULES" \
+        | sort | awk -F'\t' 'BEGIN{printf "%-10s %-8s %-28s %-22s %s\n","STEP","CLASS","RULE","MECHANISM","TEXT"} {printf "%-10s %-8s %-28s %-22s %s\n",$1,$2,$3,$4,$5}' ;;
+    check)
+        . "$HERE/../dispatch.sh"; shift; base=; [ "${1:-}" = --base ] && base=$2
+        rc=0
+        while IFS=$'\t' read -r id run; do
+            [ -n "$base" ] && run="$run --base $base"
+            crc=0; out=$(run_checker "$run" "" </dev/null) || crc=$?
+            case $crc in 0) printf '  ok    %-26s\n' "$id";; 1) printf '  FAIL  %-26s %s\n' "$id" "${out//$'\n'/; }"; rc=1;; 2) printf '  NEEDS %-26s %s\n' "$id" "${out//$'\n'/; }"; rc=1;; *) printf '  ERROR %-26s %s\n' "$id" "${out//$'\n'/; }"; rc=1;; esac
+        done < <(rules_with_trigger gate | jq -r 'select(.check.run) | [.id, .check.run] | @tsv')
+        exit $rc ;;
+    *) die "usage: harness status | steps | rules [--step <name>] | phase <name> [opts] | approve <plan> [--scope g…] | approve-release <repo> <pr> | check [--base REF]" ;;
+esac

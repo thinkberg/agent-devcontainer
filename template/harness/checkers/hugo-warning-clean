@@ -1,0 +1,15 @@
+#!/bin/bash
+# hugo-warning-clean <www-dir>
+# The build must be warning-clean: Hugo deprecates APIs across minors and
+# WARN/deprecated lines are treated as errors. Renders into a temp dir so
+# public/ (agent read-only) is untouched.
+set -uo pipefail
+www=${1:?usage: hugo-warning-clean <www-dir>}
+command -v hugo >/dev/null || { echo "hugo is not installed here — cannot verify the build"; exit 3; }
+out=$(mktemp -d); trap 'rm -rf "$out"' EXIT
+log=$(cd "$www" && hugo --logLevel info -d "$out" 2>&1); rc=$?
+bad=$(grep -iE 'deprecat|warn|error' <<<"$log" || true)
+[ $rc -eq 0 ] && [ -z "$bad" ] && exit 0
+[ -n "$bad" ] && echo "$bad" | head -20 || echo "hugo exited $rc"
+echo "the build must be warning-clean (www CLAUDE.md): fix the template/config, do not allowlist"
+exit 1

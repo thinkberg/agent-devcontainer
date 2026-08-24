@@ -1,0 +1,22 @@
+#!/bin/bash
+# release-approved  (stdin: hook input for a `gh pr merge` command)
+# A main→production Release PR ships the tip of main at merge time, not
+# at opening. The operator confirms what main gained and approves on the
+# host: `dcc approve-release <repo> <pr>` binds a token to the PR head
+# SHA. A merge without a matching token needs approval (exit 2). PRs
+# whose base is not production pass.
+set -uo pipefail
+APPROV=${HARNESS_APPROVAL_DIR:-/run/harness/approvals}
+input=$(cat); cmd=$(jq -r '.tool_input.command // empty' <<<"$input"); cwd=$(jq -r '.cwd // empty' <<<"$input")
+pr=$(grep -oE '\bgh\s+pr\s+merge\s+(\S+\s+)*?([0-9]+|https?://\S+/pull/[0-9]+)' <<<"$cmd" | grep -oE '[0-9]+$' | head -1)
+[ -n "$pr" ] || { echo "gh pr merge without a PR number — name the PR"; exit 2; }
+repoflag=$(grep -oE '(-R|--repo)\s+\S+' <<<"$cmd" | awk '{print $2}' | head -1)
+args=(pr view "$pr" --json baseRefName,headRefOid); [ -n "$repoflag" ] && args+=(-R "$repoflag")
+view=$(cd "${cwd:-.}" && gh "${args[@]}" 2>/dev/null) || { echo "cannot read PR $pr via gh"; exit 3; }
+base=$(jq -r .baseRefName <<<"$view"); head=$(jq -r .headRefOid <<<"$view")
+[ "$base" = production ] || exit 0
+name=$(basename "${repoflag:-$(cd "${cwd:-.}" && git rev-parse --show-toplevel 2>/dev/null || echo repo)}")
+tok=$APPROV/release-$name-$pr.approved
+[ -f "$tok" ] || { echo "Release PR #$pr ($name) needs the operator's approval: list what main gained since the PR was opened, then ask for 'dcc approve-release $name $pr' on the host"; exit 2; }
+[ "$(cat "$tok")" = "$head" ] || { echo "Release PR #$pr approval is stale: main moved after approval (approved $(cut -c1-7 "$tok"), now ${head:0:7}) — list the new commits and ask for a new 'dcc approve-release $name $pr'"; exit 2; }
+exit 0
