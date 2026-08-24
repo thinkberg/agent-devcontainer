@@ -286,7 +286,10 @@ the work. The image carries a harness (`/usr/local/lib/harness`, from
 (`/etc/claude-code/managed-settings.json`) that wires its hooks. Claude
 Code reads that file above every other settings level, and
 `allowManagedHooksOnly` means the agent cannot add or remove hooks in its
-own settings. Both are root-owned in the image; a change is a rebuild.
+own settings (it also narrows `statusLine` to managed settings, so the
+managed file delegates to `~/.claude/statusline-command.sh` — drop your
+script into `.claude-devcontainer/`). Both are root-owned in the image; a
+change is a rebuild.
 
 What it holds:
 
