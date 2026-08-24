@@ -162,7 +162,7 @@ Do not copy transcripts. They can contain secrets.
 | `dcc db reset`       | Delete the database and its data.                                     |
 | `dcc allow <domain>` | Permit egress to one domain, until the next restart.                  |
 | `dcc fw`             | Run the firewall again, for example after CDN addresses change.       |
-| `dcc approve <plan>` | Approve a committed plan; the run may enter phase implement. `--scope <glob>…` limits the writes. |
+| `dcc approve <plan>` | Approve a committed plan; the run may enter phase implement. `--scope <glob>…` limits the code writes; the planning markdown of the review phase stays writable. |
 | `dcc approve-release <repo> <pr>` | Approve the merge of a Release PR at its current head. |
 | `dcc check`          | Run the harness gate checks inside the container.                     |
 | `dcc harness on\|off` | The harness switch. Off: the hooks make no decisions until `dcc harness on` or the next start. |
