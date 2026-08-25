@@ -22,9 +22,10 @@ many repositories.
 
 ## How the protection works
 
-- The container runs on rootless podman with `--userns=keep-id`. The agent
-  runs as the user `vscode`, which is your host user on the mounted
-  files.
+- The container runs on rootless podman with
+  `--userns=keep-id:uid=1000,gid=1000`. The agent runs as the user
+  `vscode`, which is your host user on the mounted files. The mapping is
+  correct for each host uid, also for uid 501 on macOS.
 - The firewall starts as root, before all other processes. If the firewall
   does not start, the container stops.
 - The user `vscode` has no capabilities. `sudo` does not operate in the
@@ -44,6 +45,9 @@ many repositories.
 
 - **Rootless podman**, version 5.x. On Debian 13, install it with
   `sudo apt install podman`.
+- On macOS, install podman with `brew install podman`. Then make the VM
+  one time: `podman machine init`, then `podman machine start`. The VM
+  mounts `/Users`. Keep the projects in `/Users`.
 - **Node.js with npx**. `dcc` downloads the tool `@devcontainers/cli` when
   necessary.
 - **tmux stays on the host.** The container has no tmux. Run `dcc` in
