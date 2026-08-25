@@ -1,6 +1,9 @@
 # Plan: a safety harness for the agent devcontainer
 
-Status: plan. No code in this document is installed yet.
+Status: plan, partly built. P0, P3 and the registry and CLI of P1 are
+done (§14). Sections 2 and 3 describe the state before P0. The built
+engine is documented in [harness-ste.md](harness-ste.md); this document
+keeps the design and the open phases.
 
 This document uses the rules of
 [Simplified Technical English](https://en.wikipedia.org/wiki/Simplified_Technical_English).
@@ -162,6 +165,11 @@ scripts.
 Location in the project: `.devcontainer/rules/rules.d/*.json`.
 Location in the image: `/etc/harness/rules.d/*.json`, copied at build.
 
+As built (P1): one generic `rules.json` in the image plus the project
+overlay `.devcontainer/rules/rules.json`; the fields and the overlay
+keys are in [harness-ste.md](harness-ste.md) A.5 and A.9. The fields
+below are the design.
+
 One rule:
 
 ```json
@@ -206,18 +214,12 @@ The four classes:
 
 ### The checker contract
 
-A checker is a program. It reads JSON on stdin. It writes JSON on
-stdout. The exit code decides:
-
-| Exit | Meaning |
-|------|---------|
-| 0 | Pass |
-| 1 | Violation |
-| 2 | Approval needed |
-| other, timeout, crash | Error. The harness applies `failure_mode`, which is normally `closed`. |
+A checker is a program with an exit code: pass, violation, approval
+needed, error. The built contract is
+[`template/harness/checkers/README.md`](../template/harness/checkers/README.md).
 
 Fail-closed is not optional. A checker that crashes must block, not
-pass. Section 12 tests this.
+pass. Section 13 tests this.
 
 ### Humans approve the translation
 
@@ -354,13 +356,12 @@ docs/safety-harness.md           # this document
 `Dockerfile` copies the harness to `/usr/local/lib/harness`, owned by
 root, mode 0755. `vscode` can run it. `vscode` cannot change it.
 
-The engine — hooks, the `harness` CLI, seven generic checkers, the
+The engine — hooks, the `harness` CLI, eight generic checkers, the
 generic registry with the default working process — and its tests exist
-today in [`template/harness/`](../template/harness/). Project-specific rules never go
-there: each project carries an overlay in `.devcontainer/rules/`
-(seeded by `dcc init` from `template/rules/`) that the engine merges
-over the generic registry. Installing the engine into the image is
-phase P3.
+today in [`template/harness/`](../template/harness/) and are in the
+image (P0). Project-specific rules never go there: each project carries
+an overlay in `.devcontainer/rules/` (seeded by `dcc init` from
+`template/rules/`) that the engine merges over the generic registry.
 
 ## 12. New `dcc` commands
 
@@ -371,7 +372,9 @@ The host is the approval seat. Every new command follows the shape of
 |---------|----------|
 | `dcc contract <file>` | Freeze the task contract for the next run |
 | `dcc contract widen <path…>` | Widen the scope. It goes into the certificate. |
-| `dcc approve <plan>` | Approve a plan: write the token that lets the run enter phase implement |
+| `dcc approve <plan>` | **built** — approve a plan: write the token that lets the run enter phase implement |
+| `dcc approve-release <repo> <pr>` | **built** — approve the merge of a Release PR at its current head |
+| `dcc check` | **built** — run the gate checkers inside the container (`harness check`) |
 | `dcc gate` | Run the gate. Show the certificate. Do not push. |
 | `dcc publish` | Gate, then push with the host credential |
 | `dcc rules approve` | Write `rules.lock` after you read the change |

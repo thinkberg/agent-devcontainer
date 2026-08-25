@@ -4,8 +4,8 @@ Status: analysis and worked example. The engine and the generic rules
 are in [`template/harness/`](../template/harness/); the extracarts-specific rules, paths
 and checkers are the project overlay in
 `extracarts-planning/.devcontainer/rules/` (project rules stay with
-the project). Both are real and tested. Nothing is wired into a
-container yet.
+the project). Both are real and tested; the engine is installed in the
+image ([safety-harness.md](safety-harness.md) §14, P0).
 
 This document uses the rules of
 [Simplified Technical English](https://en.wikipedia.org/wiki/Simplified_Technical_English).
@@ -55,31 +55,16 @@ with ponytail) → review of the plan by the operator → approval →
 implement. The process must follow the ticket rules and the general
 guidelines and must never skip a step.
 
-That is a state machine. The harness treats it as one:
+That is a state machine: the generic phase machine of the harness,
+with its preconditions, the root-owned approval token and the stale-token
+rule ([harness-ste.md](harness-ste.md) A.8). The extracarts overlay
+narrows it:
 
-```
-brainstorm ──agent──► plan ──agent──► review ──OPERATOR──► implement
-   md only             md only         md only              code
-                       needs a         needs a committed    needs the token;
-                       ticket          plan + ponytail      a changed plan
-                                                            drops back
-```
-
-| Phase | Writes allowed | Transition into it needs | Who moves |
-|-------|----------------|--------------------------|-----------|
-| brainstorm | markdown in `extracarts-planning/`, any `docs/*.md`, `/tmp` | nothing; this is the state when no run state exists | — |
-| plan | the same | a ticket reference, `harness phase plan --ticket backend#12` | agent |
-| review | the same, so the plan can be revised | the plan file under `plans/`, committed, no uncommitted changes, ponytail review declared | agent |
-| implement | everything except protected paths | an approval token whose content is the committed blob hash of the plan | **operator only**: `dcc approve <plan>` on the host writes the token into a root-owned directory |
-
-Two properties matter:
-
-- The agent cannot write the token. In the container `/run/harness/approvals`
-  belongs to root; `dcc approve` reaches it through `podman exec -u root`,
-  the same path as `dcc allow`. The approval is a host act.
-- A plan edited after approval — committed or not — makes the token stale.
-  The effective phase drops to review at once. The next code write is
-  denied. The operator approves again, or not.
+| Key | extracarts value |
+|-----|------------------|
+| `plan_glob` | `planning/plans/*.md` |
+| `ticket_regex` | `^(backend\|app\|deploy\|www)#[0-9]+$` |
+| `allow_write` before implement | markdown in `extracarts-planning/` and any `docs/*.md` |
 
 The later steps follow implement. Each rule in section 4 names its step.
 
@@ -127,12 +112,11 @@ guarantee yet, and the row says what would give one.
 | `db-no-improvise` — when the DB is down, ask | implement | 2026-08-22: `pgserver` + `initdb` instead of asking | `pre-bash` regex | hook only; acceptable — the damage is wasted time, not data |
 | `protected-paths` — legal archives, PDFs, `public/`, root `out/`, policy files, workflows, own settings | implement | (www CLAUDE.md; outputs rule; self-protection) | `pre-write` glob on Edit/Write and a Bash heuristic | **read-only bind mount** per path in `devcontainer.json`, the mask technique the template already uses |
 
-### 4.2 Verify — 12 rules; 10 mechanized here, 2 existing
+### 4.2 Verify — 13 rules; 10 mechanized here, 3 existing
 
-Each checker follows one contract (`harness/checkers/README.md`): exit 0
-pass, 1 violation, 2 approval needed, 3+ error — and the dispatchers
-treat an error as a failure. `harness check` runs the `gate` ones on
-demand; that is the dry run of the gate in plan P4.
+Each checker follows the contract in `harness/checkers/README.md`.
+`harness check` runs the `gate` ones on demand; that is the dry run of
+the gate in plan P4.
 
 | Rule | Step | Checker | Runs at |
 |------|------|---------|---------|
@@ -157,10 +141,10 @@ demand; that is the dry run of the gate in plan P4.
 | `release-ships-tip` | release | `gh pr merge` of a PR whose base is `production` needs a token bound to the PR head SHA: `dcc approve-release <repo> <pr>` on the host. If main moved after the approval the token is stale and the merge is denied with the reason. Built, tested with a fake `gh`. |
 | `ponytail-review-plan` | plan | No mechanical evidence exists that a skill ran meaningfully. The agent declares it (`--ponytail-reviewed`); the declaration is in the run state the operator sees before approving. A declaration, not proof. |
 
-### 4.4 Advise — 8 rules, prose only
+### 4.4 Advise — 9 rules, prose only
 
 `ask-dont-assume`, `check-library-docs`, `no-over-engineering`,
-`focused-tests-first`, `english-placeholders-lowercase`,
+`focused-tests-first`, `plan-format-ste`, `english-placeholders-lowercase`,
 `memo-convention`, `no-pii-logging`, `backend-invariants` (the part tests
 do not cover).
 
@@ -191,7 +175,7 @@ a control on a command string is not a control on the effect.
 | (rule) | an app call, a route, or a doc row that the other two sources lack | reported | `{param}` vs `${expr}` normalized; `?query` dropped; test files and `include_in_schema=False` ignored; a `/webhooks` route and a `/webhooks` doc row both ignored |
 | (harness) | registry missing or corrupt; run state unreadable | every command denied; phase falls to brainstorm | — |
 
-194 cases in the engine suite and 11 in the overlay suite. All pass.
+198 cases in the engine suite and 11 in the overlay suite. All pass.
 
 ## 6. What enforces today, and the gaps
 
@@ -212,14 +196,12 @@ release workflow (§7).
 
 ## 7. Recommendations for the owner
 
-1. **P0 now.** Put `managed-settings.json` into the image with
-   `allowManagedHooksOnly`, `allowManagedPermissionRulesOnly`,
-   `disableBypassPermissionsMode`, `disableSideloadFlags`, the
-   `attribution` block, and the hooks from `harness/settings.hooks.json`.
-   This closes the agent-writable-settings gap and moves the two existing
-   hooks out of reach. `entry.sh` creates `/run/harness/agent` (vscode)
-   and `/run/harness/approvals` (root, 0755). `dcc approve <plan>` runs
-   `harness approve` as root. Small change.
+1. **P0 — done.** `template/managed-settings.json` is in the image
+   with `allowManagedHooksOnly`, `disableBypassPermissionsMode`,
+   `disableSideloadFlags`, the `attribution` block and the harness
+   hooks; `entry.sh` creates `/run/harness`; `dcc approve` runs
+   `harness approve` as root. `allowManagedPermissionRulesOnly` was left
+   out on purpose ([safety-harness.md](safety-harness.md) §14).
 2. **Let the release workflow refuse a direct push.** In
    `extracarts-deployment/.github/workflows/deploy.yml`, before the tag
    step: fail unless `git log -1 --format=%P` has two parents and the
@@ -253,7 +235,7 @@ release workflow (§7).
 
 | Phase | Work | Rules covered |
 |-------|------|---------------|
-| 1 | P0 managed settings + the six hooks + `harness` CLI + `dcc approve`/`approve-release`, in the image | all 14 enforce, every checker |
+| 1 | **done** — P0 managed settings + the hooks + `harness` CLI + `dcc approve`/`approve-release`, in the image | all 14 enforce, every checker |
 | 2 | Release workflow refusal + CI session-link job | `no-production-push`, `no-session-links` get a server-side guarantee |
 | 3 | done here: ten checkers, the post-write and stop dispatchers, `harness check`, the release token, the approval scope | 10 verify rules, `release-ships-tip`, `scope-to-project` |
 | 4 | Fix the contract drift; wire `de-en-parity`; a LanguageTool sidecar or host step for `grammar-gate` | the three that need the owner |
