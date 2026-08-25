@@ -9,10 +9,13 @@
   "runArgs": [
     "--name=PROJECTNAME-dev",
     "--init",
-    // rootless podman: host user <-> vscode (same uid), so the agent runs
-    // non-root with natural bind-mount ownership — the thing rootless
-    // docker could not do (it forced remoteUser root)
-    "--userns=keep-id",
+    // rootless podman: host user <-> vscode, pinned to uid/gid 1000 so the
+    // mapping holds for any host uid (podman machine on macOS: 501; plain
+    // keep-id would leave vscode at 1000 = a subuid, and git would see a
+    // foreign-owned repo). The agent runs non-root with natural bind-mount
+    // ownership — the thing rootless docker could not do (it forced
+    // remoteUser root)
+    "--userns=keep-id:uid=1000,gid=1000",
     // kills setuid: sudo is inert, root work is pid 1 (entry.sh) or
     // podman exec -u root from the host (dcc allow / dcc fw / dcc root)
     "--security-opt=no-new-privileges",

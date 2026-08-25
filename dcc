@@ -41,7 +41,8 @@ if [ "${1:-}" = init ]; then
     [[ $name =~ ^[a-z0-9][a-z0-9-]*$ ]] || { echo "ERROR: name must be lowercase [a-z0-9-]" >&2; exit 1; }
     [ ! -e .devcontainer ] || { echo "ERROR: .devcontainer already exists here" >&2; exit 1; }
     cp -r "$TEMPLATE" .devcontainer
-    grep -rl PROJECTNAME .devcontainer | xargs -r sed -i "s/PROJECTNAME/$name/g"
+    # perl -pi, not sed -i: BSD sed (macOS) wants -i '' and GNU sed wants -i
+    grep -rl PROJECTNAME .devcontainer | xargs -r perl -pi -e "s/PROJECTNAME/$name/g"
     # the claude state dir holds the container's auth token — never commit it
     if [ -d .git ] && ! grep -qxF '.claude-devcontainer/' .gitignore 2>/dev/null; then
         echo '.claude-devcontainer/' >> .gitignore
@@ -87,7 +88,7 @@ ensure_db() {
             --restart unless-stopped \
             -v "$VOL:/var/lib/postgresql/data" \
             -p "127.0.0.1:$DB_PORT:5432" \
-            -e TZ=UTC -e PGTZ=UTC "${args[@]}" \
+            -e TZ=UTC -e PGTZ=UTC ${args[@]+"${args[@]}"} \
             "$DB_IMAGE" >/dev/null
     fi
     for _ in $(seq 1 30); do
@@ -109,7 +110,8 @@ up() {
 exec_in() {   # run a command (default: interactive shell) inside as vscode
     [ $# -gt 0 ] || set -- bash
     local t=(); [ -t 0 ] && t=(-t)   # no pseudo-tty when scripted/piped
-    exec $ENGINE exec -i "${t[@]}" -u vscode -w "$ROOT" "$CTR" "$@"
+    # ${t[@]+…}: bash 3.2 (macOS /bin/bash) treats an empty array as unset under -u
+    exec $ENGINE exec -i ${t[@]+"${t[@]}"} -u vscode -w "$ROOT" "$CTR" "$@"
 }
 
 [ $# -gt 0 ] || set -- attach
