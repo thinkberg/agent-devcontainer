@@ -1,0 +1,102 @@
+#!/usr/bin/env python3
+# ste-compliant [--glossary FILE] [--ignore ID,ID] <file.md|dir>...
+# Optional: the markdown follows ASD-STE100 Simplified Technical English.
+# Needs `ste100` on the PATH (asd-ste100-checker:
+#   pip install git+https://github.com/sourdough-bread/asd-ste100-checker && ste100 setup).
+# Markdown becomes plain text first: code fences dropped, inline code an
+# ALL-CAPS token (the checker skips those), one table cell per line, a full
+# stop after headings and cells. `<!-- ste: procedure -->` and
+# `<!-- ste: description -->` switch the text type (default description;
+# procedures get the 20-word limit and the imperative rule). Errors are
+# findings; warnings are not.
+# ponytail: STE-POS-MISMATCH and STE-TOPIC-SENTENCE ignored by default —
+# spaCy mis-tags words STE approves as both noun and verb (set, change,
+# start); pass --ignore '' to see them.
+# Wire it in the project overlay (docs/harness-ste.md, D.8):
+#   {"id":"ste-compliant","class":"verify","step":"verify","trigger":["post_write","gate"],
+#    "check":{"paths":["docs/*.md"],
+#             "run":"{checkers}/ste-compliant --glossary {root}/docs/ste-glossary.yaml {root}/docs"}}
+import json, os, re, shutil, subprocess, sys, tempfile
+
+IGNORE = {'STE-POS-MISMATCH', 'STE-TOPIC-SENTENCE'}
+MARK = re.compile(r'<!--\s*ste:\s*(description|procedure)\s*-->')
+
+def plain(block):
+    block = re.sub(r'```.*?```', '', block, flags=re.S)
+    block = re.sub(r'`[^`]*`', 'CODE', block)
+    block = re.sub(r'\[([^\]]*)\]\([^)]*\)', r'\1', block)
+    block = re.sub(r'\*\*([^*]*)\*\*', r'\1', block)
+    out = []
+    for line in block.splitlines():
+        if re.match(r'^\s*\|?\s*-{3,}', line):
+            continue
+        if line.startswith('#'):
+            line = re.sub(r'^#+\s*', '', line).rstrip()
+            line = re.sub(r'\b[A-Z]\b(?![.\d])', '', line)   # "Part B" — a label, not a word
+            if line and line[-1] not in '.:':
+                line += '.'
+        line = re.sub(r'^\s*(?:[-*]|\d+\.)\s+', '', line)
+        if line.strip().startswith('|'):
+            for c in line.strip().strip('|').split('|'):
+                c = c.strip()
+                if c:
+                    out.append(c if c[-1] in '.:' else c + '.')
+        else:
+            out.append(line)
+    return '\n'.join(out)
+
+def segments(text):
+    kind, pos = 'description', 0
+    for m in MARK.finditer(text):
+        yield kind, text[pos:m.start()]
+        kind, pos = m.group(1), m.end()
+    yield kind, text[pos:]
+
+args, glossary, ignore = sys.argv[1:], None, set(IGNORE)
+while args and args[0].startswith('--'):
+    if args[0] == '--glossary' and len(args) > 1:
+        glossary, args = args[1], args[2:]
+    elif args[0] == '--ignore' and len(args) > 1:
+        ignore, args = set(filter(None, args[1].split(','))), args[2:]
+    else:
+        print(f'unknown option {args[0]}'); sys.exit(3)
+if not args:
+    print('usage: ste-compliant [--glossary FILE] [--ignore ID,ID] <file.md|dir>...'); sys.exit(3)
+ste100 = shutil.which('ste100')
+if not ste100:
+    print('ste100 not on the PATH — pip install git+https://github.com/sourdough-bread/asd-ste100-checker && ste100 setup'); sys.exit(3)
+
+files = []
+for a in args:
+    if os.path.isdir(a):
+        for d, _, fs in os.walk(a):
+            files += sorted(os.path.join(d, f) for f in fs if f.endswith('.md'))
+    else:
+        files.append(a)
+
+rc = 0
+for f in files:
+    try:
+        text = open(f, encoding='utf-8').read()
+    except OSError as e:
+        print(f'{f}: {e}'); rc = 3; continue
+    for kind, body in segments(text):
+        body = plain(body)
+        if not body.strip():
+            continue
+        with tempfile.NamedTemporaryFile('w', suffix='.txt', delete=False, encoding='utf-8') as t:
+            t.write(body); tmp = t.name
+        cmd = [ste100, 'check', tmp, '--text-type', kind] + (['--glossary', glossary] if glossary else [])
+        r = subprocess.run(cmd, capture_output=True, text=True)
+        os.unlink(tmp)
+        try:
+            findings = json.loads(r.stdout)['findings']
+        except (ValueError, KeyError, TypeError):
+            print(f'{f}: ste100 failed: {(r.stderr or r.stdout).strip()[-200:]}'); rc = 3; continue
+        for x in findings:
+            if x.get('severity') != 'error' or x.get('rule_id') in ignore:
+                continue
+            ctx = body[x.get('start', 0):x.get('end', 0)].strip() or body[max(0, x.get('start', 0) - 40):x.get('end', 0) + 40].strip()
+            print(f"{f}: {x['rule_id']} ({kind}): {x.get('message', '')} — {ctx!r}"[:300])
+            rc = max(rc, 1)
+sys.exit(rc)

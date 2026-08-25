@@ -135,6 +135,15 @@ out=$("$PW" <<<"$(jq -n --arg c "sed -i s/a/b/ planning/DONE.md" --arg cwd "$W" 
 out=$("$PW" <<<"$(jq -n --arg c "sed -i s/a/b/ specs/03_x.md" --arg cwd "$W" '{session_id:"t8",tool_name:"Bash",cwd:$cwd,tool_input:{command:$c}}')"); grep -q 'scope-to-project' <<<"$out" && [ ! -f "$HARNESS_AGENT_DIR/t8.touched" ] && pass=$((pass+1)) || { fail=$((fail+1)); echo "FAIL [a denied write is not recorded as touched]"; }
 gq "$S" checkout -q -- 03_x.md
 
+echo "== ste-compliant (optional: needs ste100; tests/fake-ste100 stands in)"
+mkdir -p "$W/docs"; printf '# Guide\n\nUse the tool.\n\n<!-- ste: procedure -->\n\n## Steps\n\n1. Run `x`.\n' >"$W/docs/g.md"
+expect_rc 3 "no ste100 = error (fail closed in the dispatcher)" env PATH=/usr/bin:/bin "$CK/ste-compliant" "$W/docs/g.md"
+cp "$HERE/fake-ste100" "$FB/ste100"; export FAKE_STE_LOG=$W/ste.log
+expect_rc 0 "clean markdown passes" "$CK/ste-compliant" --glossary /dev/null "$W/docs"
+grep -q '^description$' "$FAKE_STE_LOG" && grep -q '^procedure$' "$FAKE_STE_LOG" && pass=$((pass+1)) || { fail=$((fail+1)); echo "FAIL [ste: the marker switches the text type]"; }
+printf '# Guide\n\nUtilise the tool.\n' >"$W/docs/g.md"
+expect_rc 1 "an unapproved word fails" "$CK/ste-compliant" "$W/docs/g.md"
+
 echo "== harness check (the gate's dry run)"
 gq "$B" tag v1.0.2   # drift again: released past the pin
 out=$("$H" check 2>&1); rc=$?; grep -q 'FAIL  versions-repin' <<<"$out" && grep -q 'ok    hotfix-must-land' <<<"$out" && [ $rc -eq 1 ] && pass=$((pass+1)) || { fail=$((fail+1)); echo "FAIL [check: reports the failing rule, exit 1] rc=$rc"; echo "$out"; }

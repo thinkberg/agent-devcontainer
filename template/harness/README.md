@@ -24,8 +24,10 @@ A corrupt overlay fails closed: every hook denies. No overlay at all is
 fine: the generic registry works alone.
 
 The worked example — a real project's rules classified and overlaid —
-is [docs/rules-extracarts.md](../docs/rules-extracarts.md); that overlay
-lives in the extracarts project, not here.
+is [docs/rules-extracarts.md](../../docs/rules-extracarts.md); that overlay
+lives in the extracarts project, not here. A step-by-step guide in
+Simplified Technical English, with operator and agent procedures kept
+apart, is [docs/harness-ste.md](../../docs/harness-ste.md).
 
 | File | Purpose |
 |------|---------|
@@ -37,8 +39,8 @@ lives in the extracarts project, not here.
 | `hooks/post-write.sh` | PostToolUse. Runs the checkers whose `paths` match the edited file; findings go back to the agent. |
 | `hooks/stop-checks.sh` | Stop. Runs the `stop` checkers: `block` rules block once per session, `warn` rules become a system message. |
 | `hooks/ticket-state.sh` | PostToolUse + Stop. A session that changed tickets cannot end until `bin/check-tickets` ran clean. |
-| `checkers/` | Seven generic checkers under one exit-code contract (`checkers/README.md`): spec headings, review ticks, hugo build, checklist upkeep, dangling hotfixes, version re-pin, release approval. A project wires them with its paths, or adds its own. |
-| `tests/run.sh` | 194 positive, negative, bypass, fail-closed and overlay-merge cases on a made-up workspace (`tests/fixtures/project.json` is the fixture overlay; `tests/checks.sh` holds the checker ones; `tests/fake-gh` answers `gh` offline). |
+| `checkers/` | Eight generic checkers under one exit-code contract (`checkers/README.md`): spec headings, review ticks, hugo build, checklist upkeep, dangling hotfixes, version re-pin, release approval, and — optional, needs `ste100` — ASD-STE100 compliance of markdown (wiring: [docs/harness-ste.md](../../docs/harness-ste.md), D.8). A project wires them with its paths, or adds its own. |
+| `tests/run.sh` | 198 positive, negative, bypass, fail-closed and overlay-merge cases on a made-up workspace (`tests/fixtures/project.json` is the fixture overlay; `tests/checks.sh` holds the checker ones; `tests/fake-gh` and `tests/fake-ste100` answer `gh` and `ste100` offline). |
 
 ```bash
 harness/tests/run.sh          # needs bash, jq, git, python3; no network, no hugo, no real gh

@@ -1,0 +1,11 @@
+#!/bin/bash
+# tests/fake-ste100 — answers `ste100 check FILE --text-type T [--glossary G]`
+# offline: every line with "utilise" is one STE-VOCAB-UNAPPROVED error.
+# Appends the text type it saw to $FAKE_STE_LOG.
+[ "${1:-}" = check ] || { echo "fake-ste100: unhandled: $*" >&2; exit 1; }
+file=$2; shift 2; type=auto
+while [ $# -gt 0 ]; do case $1 in --text-type) type=$2; shift 2 ;; --glossary) shift 2 ;; *) shift ;; esac; done
+[ -z "${FAKE_STE_LOG:-}" ] || echo "$type" >>"$FAKE_STE_LOG"
+n=$(grep -ci utilise "$file")
+jq -n --argjson n "$n" '{summary:{total:$n,error:$n}, findings:[range($n) | {rule_id:"STE-VOCAB-UNAPPROVED", severity:"error", message:"Unapproved word utilise; use use.", start:0, end:0}]}'
+[ "$n" -eq 0 ]
