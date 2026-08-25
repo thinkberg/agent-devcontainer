@@ -11,6 +11,8 @@ The container gives these guarantees:
   domains on an allowlist.
 - Masks hide the files that contain secrets. The agent reads them as
   empty.
+- A harness enforces the working process: plan, review, your approval,
+  then code. Hooks deny the commands and edits that the rules forbid.
 - The agent cannot change these rules from inside the container.
 
 A PostgreSQL database is optional. It is off by default. The template
@@ -30,6 +32,9 @@ repositories.
   `dcc allow` on the host.
 - The token mount and the secret masks are read-only. The container cannot
   remount them (no `CAP_SYS_ADMIN`).
+- The harness hooks are wired by root-owned managed settings that Claude
+  Code reads above every other settings level. The agent cannot add,
+  remove or bypass them; approvals are written on the host only.
 - Protect dangerous operations on the server side (branch protection,
   deploy environments). The container cannot limit the permissions of the
   token.
@@ -282,28 +287,23 @@ it, because the token has no Workflows permission.
 
 The image also carries a harness: hooks that Claude Code runs before and
 after each tool call, a `harness` CLI, checkers, and a rule registry. The
-agent proposes an action; the harness accepts or denies it. Everything is
-root-owned and wired by managed settings, so the agent cannot change or
-bypass it from inside; a change is a rebuild.
+agent proposes an action; the harness accepts or denies it. It is
+root-owned and wired by managed settings; a change is a rebuild.
 
-- The work follows brainstorm → plan → review → implement. Before
-  implement the agent writes markdown only; the step into implement needs
-  your approval on the host (`dcc approve`).
-- Generic rules cover git, publication, secrets, tickets and protected
-  paths. Project checks run after edits, at the session end and with
-  `dcc check`.
-- Your project's rules, paths and checkers go into
-  `.devcontainer/rules/` (seeded by `dcc init`, read-only in the
-  container: the agent proposes changes as text, you apply them).
-- `dcc harness off` pauses the harness until `dcc harness on` or the next
-  start. The managed settings also own `statusLine`; put your status
-  script at `.claude-devcontainer/statusline-command.sh`.
+It gives you a working process as a state machine (brainstorm → plan →
+review → implement) with your approval on the host as the step into
+code (`dcc approve`, `dcc approve-release`); 22 generic rules on git,
+publication, secrets, tickets and protected paths, each classed as
+enforce, verify, approve or advise; checkers that run after an edit, at
+the session end and with `dcc check`; a project overlay in
+`.devcontainer/rules/` for your own rules and checkers; and an off
+switch (`dcc harness off|on`).
 
-Reference and procedures for operator and agent:
-[docs/harness-ste.md](docs/harness-ste.md). Design, rationale and limits:
+Reference and procedures: [docs/harness-ste.md](docs/harness-ste.md).
+Design, rationale and limits:
 [docs/safety-harness.md](docs/safety-harness.md). A complete worked
-example: [docs/rules-extracarts.md](docs/rules-extracarts.md). The engine
-itself: [template/harness/README.md](template/harness/README.md).
+example: [docs/rules-extracarts.md](docs/rules-extracarts.md). The
+engine: [template/harness/README.md](template/harness/README.md).
 
 ## Prior art
 
