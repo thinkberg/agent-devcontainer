@@ -38,7 +38,7 @@ lives in the extracarts project, not here.
 | `hooks/stop-checks.sh` | Stop. Runs the `stop` checkers: `block` rules block once per session, `warn` rules become a system message. |
 | `hooks/ticket-state.sh` | PostToolUse + Stop. A session that changed tickets cannot end until `bin/check-tickets` ran clean. |
 | `checkers/` | Seven generic checkers under one exit-code contract (`checkers/README.md`): spec headings, review ticks, hugo build, checklist upkeep, dangling hotfixes, version re-pin, release approval. A project wires them with its paths, or adds its own. |
-| `tests/run.sh` | 183 positive, negative, bypass, fail-closed and overlay-merge cases on a made-up workspace (`tests/fixtures/project.json` is the fixture overlay; `tests/checks.sh` holds the checker ones; `tests/fake-gh` answers `gh` offline). |
+| `tests/run.sh` | 194 positive, negative, bypass, fail-closed and overlay-merge cases on a made-up workspace (`tests/fixtures/project.json` is the fixture overlay; `tests/checks.sh` holds the checker ones; `tests/fake-gh` answers `gh` offline). |
 
 ```bash
 harness/tests/run.sh          # needs bash, jq, git, python3; no network, no hugo, no real gh
