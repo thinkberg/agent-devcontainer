@@ -1,0 +1,210 @@
+# Project glossary for docs/harness-ste.md — the technical names and technical
+# verbs that ASD-STE100 permits in addition to the approved dictionary.
+# Checker: asd-ste100-checker (https://github.com/sourdough-bread/asd-ste100-checker).
+# Convert the markdown to plain text first (drop code fences, one table cell
+# per line, inline code -> an ALL-CAPS token). Check Part A with
+# --text-type description and Parts B-D with --text-type procedure:
+#   ste100 check <plain.txt> --text-type <type> --glossary docs/ste-glossary.yaml
+name: agent-devcontainer-harness
+technical_nouns:
+  - agent
+  - approval
+  - argument
+  - block
+  - blob
+  - brainstorm
+  - base
+  - branch
+  - build
+  - call
+  - builtin
+  - checker
+  - checklist
+  - class
+  - command
+  - close
+  - code
+  - commit
+  - configuration
+  - container
+  - contract
+  - credential
+  - decision
+  - description
+  - document
+  - edit
+  - default
+  - directory
+  - engine
+  - error
+  - exception
+  - field
+  - file
+  - finding
+  - firewall
+  - fixture
+  - gate
+  - glob
+  - glossary
+  - guarantee
+  - harness
+  - hash
+  - head
+  - hook
+  - host
+  - id
+  - image
+  - implement
+  - input
+  - intake
+  - key
+  - line
+  - list
+  - loop
+  - markdown
+  - memory
+  - message
+  - mount
+  - network
+  - operator
+  - ops
+  - output
+  - overlay
+  - owner
+  - path
+  - permission
+  - pattern
+  - phase
+  - placeholder
+  - plan
+  - precondition
+  - process
+  - program
+  - project
+  - prompt
+  - publish
+  - regex
+  - registry
+  - release
+  - repo
+  - repository
+  - restart
+  - review
+  - root
+  - rule
+  - run
+  - scope
+  - secret
+  - section
+  - settings
+  - session
+  - site
+  - state
+  - status
+  - stdin
+  - stdout
+  - step
+  - suite
+  - switch
+  - target
+  - template
+  - text
+  - ticket
+  - token
+  - tool
+  - trigger
+  - verb
+  - verify
+  - violation
+  - warning
+  - workspace
+  - write
+  # products and commands
+  - bash
+  - git
+  - hugo
+  - jq
+  - python
+  - ponytail
+  - dcc
+  - Claude
+  - Code
+  - CLI
+  - JSON
+  - YAML
+  - PDF
+  - PR
+  - SHA
+  - CI
+  - PATH
+  # adjectives / attributes used as technical terms
+  - word: committed
+    part_of_speech: adjective
+  - word: uncommitted
+    part_of_speech: adjective
+  - word: corrupt
+    part_of_speech: adjective
+  - word: generic
+    part_of_speech: adjective
+  - word: read-only
+    part_of_speech: adjective
+  - word: writable
+    part_of_speech: adjective
+  - word: executable
+    part_of_speech: adjective
+  - word: stale
+    part_of_speech: adjective
+  - word: dirty
+    part_of_speech: adjective
+  - word: effective
+    part_of_speech: adjective
+  - word: lowercase
+    part_of_speech: adjective
+  - word: fail-closed
+    part_of_speech: adjective
+  - word: mechanical
+    part_of_speech: adjective
+  - word: technical
+    part_of_speech: adjective
+  - word: legal
+    part_of_speech: adjective
+  - word: protected
+    part_of_speech: adjective
+  # STE-approved words that the checker's extracted dictionary lacks
+  # (the dictionary names them as alternatives for other words)
+  - word: applicable
+    part_of_speech: adjective
+    status: approved
+  - word: failure
+    status: approved
+technical_verbs:
+  - word: run
+    inflections: [runs, ran, running]
+  - word: commit
+    inflections: [commits, committed]
+  - word: merge
+    inflections: [merges, merged]
+  - word: mount
+    inflections: [mounts, mounted]
+  - word: deny
+    inflections: [denies, denied]
+  - word: match
+    inflections: [matches, matched]
+  - word: edit
+    inflections: [edits, edited]
+  - word: approve
+    inflections: [approves, approved]
+  - word: render
+    inflections: [renders, rendered]
+  - word: print
+    inflections: [prints, printed]
+  - word: exit
+    inflections: [exits, exited]
+  - word: install
+    inflections: [installs, installed]
+  - word: configure
+    inflections: [configures, configured]
+  - word: declare
+    inflections: [declares, declared]
+  - word: block
+    inflections: [blocks, blocked]
