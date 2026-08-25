@@ -170,6 +170,118 @@ technical_nouns:
     part_of_speech: adjective
   - word: protected
     part_of_speech: adjective
+  # container and tooling terms of the project README
+  - address
+  - allowlist
+  - API
+  - array
+  - boundary
+  - browser
+  - capability
+  - checkout
+  - cloud
+  - container
+  - database
+  - devcontainer
+  - domain
+  - egress
+  - email
+  - environment
+  - expiry
+  - feature
+  - grant
+  - hardening
+  - identity
+  - inventory
+  - link
+  - login
+  - loopback
+  - machine
+  - metadata
+  - npx
+  - pid
+  - port
+  - production
+  - provisioning
+  - rebuild
+  - rotation
+  - sandbox
+  - script
+  - server
+  - setup
+  - shebang
+  - shell
+  - sidecar
+  - specification
+  - subnet
+  - sudo
+  - terminal
+  - tmux
+  - traffic
+  - transcript
+  - user
+  - variable
+  - venv
+  - version
+  - workflow
+  - setuid
+  - request
+  - Simplified
+  - Technical
+  - English
+  - init
+  - license
+  - wrapper
+  - GitHub
+  - Podman
+  - PostgreSQL
+  - Debian
+  - Ubuntu
+  - Node.js
+  - node
+  - Anthropic
+  - Anthropics
+  - Issues
+  - Contents
+  - Workflows
+  - StefanMaron
+  - nikvdp
+  - cco
+  - claudeCodeAlDevContainer
+  - devcontainers
+  - dev
+  - word: rootless
+    part_of_speech: adjective
+  - word: private
+    part_of_speech: adjective
+  - word: unsigned
+    part_of_speech: adjective
+  - word: untrusted
+    part_of_speech: adjective
+  - word: unlisted
+    part_of_speech: adjective
+  - word: sandboxed
+    part_of_speech: adjective
+  - word: restricted
+    part_of_speech: adjective
+  - word: hardened
+    part_of_speech: adjective
+  - word: interactive
+    part_of_speech: adjective
+  - word: persistent
+    part_of_speech: adjective
+  - word: outbound
+    part_of_speech: adjective
+  - word: inbound
+    part_of_speech: adjective
+  - word: fine-grained
+    part_of_speech: adjective
+  - word: managed
+    part_of_speech: adjective
+  - word: owned
+    part_of_speech: adjective
+  - word: absolute
+    part_of_speech: adjective
   # STE-approved words that the checker's extracted dictionary lacks
   # (the dictionary names them as alternatives for other words)
   - word: applicable
@@ -208,3 +320,23 @@ technical_verbs:
     inflections: [declares, declared]
   - word: block
     inflections: [blocks, blocked]
+  - word: mask
+    inflections: [masks, masked]
+  - word: rebuild
+    inflections: [rebuilds]
+  - word: remount
+    inflections: [remounts]
+  - word: uncomment
+    inflections: [uncomments]
+  - word: expose
+    inflections: [exposes, exposed]
+  - word: initialize
+    inflections: [initializes, initialized]
+  - word: bind
+    inflections: [binds, bound]
+  - word: enforce
+    inflections: [enforces, enforced]
+  - word: advise
+    inflections: [advises]
+  - word: login
+    inflections: [logs]

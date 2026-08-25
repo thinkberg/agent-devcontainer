@@ -5,7 +5,7 @@
 #   pip install git+https://github.com/sourdough-bread/asd-ste100-checker && ste100 setup).
 # Markdown becomes plain text first: code fences dropped, inline code an
 # ALL-CAPS token (the checker skips those), one table cell per line, a full
-# stop after headings and cells. `<!-- ste: procedure -->` and
+# stop after headings, cells and list items. `<!-- ste: procedure -->` and
 # `<!-- ste: description -->` switch the text type (default description;
 # procedures get the 20-word limit and the imperative rule). Errors are
 # findings; warnings are not.
@@ -23,8 +23,9 @@ MARK = re.compile(r'<!--\s*ste:\s*(description|procedure)\s*-->')
 
 def plain(block):
     block = re.sub(r'```.*?```', '', block, flags=re.S)
+    block = re.sub(r'\n[ \t]+(?![-*]\s|\d+\.\s)(?=\S)', ' ', block)   # join wrapped list items and paragraphs
     block = re.sub(r'`[^`]*`', 'CODE', block)
-    block = re.sub(r'\[([^\]]*)\]\([^)]*\)', r'\1', block)
+    block = re.sub(r'\[([^\]]*)\]\([^)]*\)', lambda m: 'CODE' if re.search(r'[/.]', m.group(1)) else m.group(1), block)
     block = re.sub(r'\*\*([^*]*)\*\*', r'\1', block)
     out = []
     for line in block.splitlines():
@@ -35,7 +36,10 @@ def plain(block):
             line = re.sub(r'\b[A-Z]\b(?![.\d])', '', line)   # "Part B" — a label, not a word
             if line and line[-1] not in '.:':
                 line += '.'
-        line = re.sub(r'^\s*(?:[-*]|\d+\.)\s+', '', line)
+        item = re.match(r'^\s*(?:[-*]|\d+\.)\s+', line)
+        line = re.sub(r'^\s*(?:[-*]|\d+\.)\s+', '', line).rstrip()
+        if line.endswith((':', ';')) or (item and line and line[-1] not in '.!?'):
+            line = line.rstrip(':;') + '.'   # a list item or an intro line is one sentence
         if line.strip().startswith('|'):
             for c in line.strip().strip('|').split('|'):
                 c = c.strip()
