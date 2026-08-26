@@ -6,7 +6,7 @@
 #
 # Engine files — harness/, managed-settings.json, entry.sh, the firewall
 # and setup scripts, this script — are replaced by the template's version
-# (PROJECTNAME and the subnet substituted, as dcc init does).
+# (the project name and the subnet substituted, as dcc init does).
 # Configuration files — devcontainer.json, Dockerfile, dcc.conf,
 # allowlist.txt — get a 3-way merge: the template version this project
 # was last updated from (template.rev), the new template, your file.
