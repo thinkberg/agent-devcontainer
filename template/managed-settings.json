@@ -26,12 +26,12 @@
         "hooks": [
           {
             "type": "command",
-            "command": "/usr/local/lib/harness/hooks/pre-bash.sh",
+            "command": "/usr/local/lib/harness/harness.py hook pre-bash",
             "timeout": 10
           },
           {
             "type": "command",
-            "command": "/usr/local/lib/harness/hooks/pre-write.sh",
+            "command": "/usr/local/lib/harness/harness.py hook pre-write",
             "timeout": 10
           }
         ]
@@ -41,7 +41,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "/usr/local/lib/harness/hooks/pre-write.sh",
+            "command": "/usr/local/lib/harness/harness.py hook pre-write",
             "timeout": 10
           }
         ]
@@ -63,7 +63,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "/usr/local/lib/harness/hooks/ticket-state.sh post",
+            "command": "/usr/local/lib/harness/harness.py hook ticket-state post",
             "timeout": 10
           }
         ]
@@ -73,7 +73,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "/usr/local/lib/harness/hooks/post-write.sh",
+            "command": "/usr/local/lib/harness/harness.py hook post-write",
             "timeout": 90
           }
         ]
@@ -84,12 +84,12 @@
         "hooks": [
           {
             "type": "command",
-            "command": "/usr/local/lib/harness/hooks/ticket-state.sh stop",
+            "command": "/usr/local/lib/harness/harness.py hook ticket-state stop",
             "timeout": 10
           },
           {
             "type": "command",
-            "command": "/usr/local/lib/harness/hooks/stop-checks.sh",
+            "command": "/usr/local/lib/harness/harness.py hook stop-checks",
             "timeout": 90
           }
         ]

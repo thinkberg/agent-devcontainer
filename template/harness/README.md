@@ -32,15 +32,9 @@ apart, is [docs/harness-ste.md](../../docs/harness-ste.md).
 | File | Purpose |
 |------|---------|
 | `rules.json` | The generic registry: 22 rules (git hygiene, publish surface, secrets, the phase machine, protected policy paths, the ticket workflow) and the default `phases`. |
-| `lib.sh`, `dispatch.sh` | Shared: plan blob hash, effective phase, approval token and scope; running a checker by its `run` template. |
-| `bin/harness` | `status`; `steps` (the process, current phase marked); `rules [--step]`; `phase …` with mechanical preconditions; `approve <plan> [--scope g…]` and `approve-release <repo> <pr>` (operator, via `dcc` on the host); `check [--base REF]` — the gate's dry run; a per-file rule (`{file}` in its template) runs over every workspace file its `paths` match. |
-| `hooks/pre-bash.sh` | PreToolUse `Bash`. Regex rules, the `-C /abs` builtin, and checker-backed rules (`when` + `run`). First match denies. |
-| `hooks/pre-write.sh` | PreToolUse `Edit\|Write\|…\|Bash`. Protected paths, then the phase gate and the approved scope. |
-| `hooks/post-write.sh` | PostToolUse. Runs the checkers whose `paths` match the edited file; findings go back to the agent. |
-| `hooks/stop-checks.sh` | Stop. Runs the `stop` checkers: `block` rules block once per session, `warn` rules become a system message. |
-| `hooks/ticket-state.sh` | PostToolUse + Stop. A session that changed tickets cannot end until `bin/check-tickets` ran clean. |
+| `harness.py` | The engine, one program (Python, standard library only). `hook pre-bash`: PreToolUse `Bash` — regex rules, the `-C /abs` builtin, checker-backed rules (`when` + `run`); first match denies. `hook pre-write`: PreToolUse `Edit\|Write\|…\|Bash` — protected paths, then the phase gate and the approved scope. `hook post-write`: PostToolUse — the checkers whose `paths` match the edited file; findings go back to the agent. `hook stop-checks`: Stop — the `stop` checkers; `block` rules block once per session, `warn` rules become a system message. `hook ticket-state post\|stop`: a session that changed tickets cannot end until `bin/check-tickets` ran clean. CLI: `status`; `steps` (the process, current phase marked); `rules [--step] [--json]`; `phase …` with mechanical preconditions; `approve <plan> [--scope g…]` and `approve-release <repo> <pr>` (operator, via `dcc` on the host); `check [--base REF]` — the gate's dry run; a per-file rule (`{file}` in its template) runs over every workspace file its `paths` match. |
 | `checkers/` | Eight generic checkers under one exit-code contract (`checkers/README.md`): spec headings, review ticks, hugo build, checklist upkeep, dangling hotfixes, version re-pin, release approval, and — optional, needs `ste100` — ASD-STE100 compliance of markdown (wiring: [docs/harness-ste.md](../../docs/harness-ste.md), D.8). A project wires them with its paths, or adds its own. |
-| `tests/run.sh` | 199 positive, negative, bypass, fail-closed and overlay-merge cases on a made-up workspace (`tests/fixtures/project.json` is the fixture overlay; `tests/checks.sh` holds the checker ones; `tests/fake-gh` and `tests/fake-ste100` answer `gh` and `ste100` offline). |
+| `tests/run.sh` | 201 positive, negative, bypass, fail-closed and overlay-merge cases on a made-up workspace (`tests/fixtures/project.json` is the fixture overlay; `tests/checks.sh` holds the checker ones; `tests/fake-gh` and `tests/fake-ste100` answer `gh` and `ste100` offline). |
 
 ```bash
 harness/tests/run.sh          # needs bash, jq, git, python3; no network, no hugo, no real gh
@@ -60,7 +54,17 @@ harness check                 # what the gate will ask, on demand
 
 Contract of a hook: JSON on stdin, JSON decision on stdout, exit 0. No
 output means no decision. A Stop hook blocks with exit 2. An unreadable
-registry denies; no run state means brainstorm. The hooks fail closed.
+registry denies; no run state means brainstorm. The hooks fail closed —
+also on a rule regex that does not compile, and on a bug in the engine
+itself (a PreToolUse hook then denies instead of erroring out, which
+would allow). Regexes are Python `re`, matched line by line like
+`grep -E`: `\b \s \S` work, POSIX classes (`[[:space:]]`) do not.
+The hook path spawns no program: the phase gate hashes the plan file
+itself (`hashlib`, the same id as git's blob); `git` runs only in the
+CLI verbs that assert "committed", checkers only when a rule binds.
+The interpreter runs with `-I` (see the shebang): no user site-packages
+and no `PYTHON*` variables, so nothing the agent can write runs inside a
+hook.
 
 State: `$HARNESS_AGENT_DIR` (default `/run/harness/agent`, agent-writable)
 holds the run state; `$HARNESS_APPROVAL_DIR` (default
