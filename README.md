@@ -182,7 +182,7 @@ Do not copy transcripts. They can contain secrets.
 | `dcc approve-release <repo> <pr>` | Approve the merge of a Release PR at the head of the PR. |
 | `dcc check`          | Run the harness gate checks in the container.                         |
 | `dcc harness on\|off` | The harness switch. Off: the hooks make no decisions until `dcc harness on` or the next start. |
-| `dcc root`           | Open a root shell in the container. Use this only for repairs.        |
+| `dcc root [cmd]`     | Open a root shell in the container, or run `cmd` as root. Repairs only. |
 
 Notes:
 

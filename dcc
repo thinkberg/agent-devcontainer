@@ -99,9 +99,12 @@ ensure_db() {
 }
 
 up() {
-    # bind sources; podman won't create them (empty.d: directory-mask source)
-    mkdir -p "$ROOT/.claude-devcontainer" "$ROOT/.devcontainer/empty.d" \
-        "$HOME/.config/$NAME-devcontainer"
+    # bind sources; podman won't create them (empty.d: directory-mask source).
+    # The project-state dir under .claude-devcontainer too: a nested mount
+    # there (e.g. the host memory dir) makes podman create the missing
+    # parents as container root = host subuid, and the agent can't write them
+    mkdir -p "$ROOT/.claude-devcontainer/projects/-$(printf %s "$ROOT" | sed 's|^/||; s|/|-|g')" \
+        "$ROOT/.devcontainer/empty.d" "$HOME/.config/$NAME-devcontainer"
     ensure_db
     npx --yes @devcontainers/cli up --docker-path "$ENGINE" \
         --workspace-folder "$ROOT" "$@"
@@ -160,7 +163,9 @@ case "$1" in
             *) echo "usage: dcc harness [on|off|status]" >&2; exit 1 ;;
         esac ;;
     fw)      $ENGINE exec -u root "$CTR" /usr/local/bin/devcontainer-firewall.sh ;;
-    root)    $ENGINE exec -it -u root "$CTR" bash ;;
+    root)    shift; [ $# -gt 0 ] || set -- bash   # root shell, or one root command
+             t=(); [ -t 0 ] && t=(-t)
+             exec $ENGINE exec -i ${t[@]+"${t[@]}"} -u root "$CTR" "$@" ;;
     attach)
         shift
         running "$CTR" || up
