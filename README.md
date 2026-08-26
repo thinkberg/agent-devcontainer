@@ -171,6 +171,12 @@ cp -r "$HOME/.claude/projects/$key/memory" ".claude-devcontainer/projects/$key/"
 
 Do not copy transcripts. They can contain secrets.
 
+The two agents read different instruction files from the workspace:
+Claude Code reads `CLAUDE.md`, Codex reads `AGENTS.md`. If you use both,
+keep the rules in one file and let the other point to it. The harness
+does not depend on either file — the rules in `.devcontainer/rules/` bind
+both agents.
+
 <!-- ste: description -->
 
 ## Commands
@@ -178,7 +184,7 @@ Do not copy transcripts. They can contain secrets.
 | Command              | Function                                                              |
 |----------------------|-----------------------------------------------------------------------|
 | `dcc`                | Start the container if necessary. Open a shell in the container.      |
-| `dcc attach <cmd>`   | Run `<cmd>` in the container, not a shell. Example: `dcc attach codex`. |
+| `dcc attach <cmd>`   | Run `<cmd>` in the container, not a shell. Example: `dcc attach claude` or `dcc attach codex`. |
 | `dcc up <cmd>`       | Start the container and the database, then run `<cmd>`. Use this in scripts. |
 | `dcc down`           | Stop the container and the database. All data stays.                  |
 | `dcc rebuild`        | Build a new image and container. The database does not change.        |
@@ -201,7 +207,8 @@ Notes:
 - In the container, git pushes with HTTPS and the token. `GH_TOKEN`
   is available only in interactive shells. For scripts, use
   `dcc up bash -ic '…'`, not `bash -c`.
-- To continue a stopped session, use the agent's resume command.
+- To continue a stopped session: `dcc attach claude -c`, or
+  `dcc attach codex resume --last`.
 - For scripts, `dcc attach codex exec --json "task"` emits Codex JSONL.
 
 ## Updates
@@ -359,6 +366,12 @@ The harness gives you:
 - a project overlay in `.devcontainer/rules/` for the rules and checkers
   of your project;
 - an off switch, `dcc harness off|on`.
+
+The hooks are wired for both agents and were tested against both. One
+guarantee is weaker under Codex: a session that changed tickets must
+still run `bin/check-tickets`, but a *failing* check clears the flag,
+because Codex reports no exit status to the hook. The limits are in
+[docs/safety-harness.md](docs/safety-harness.md) §15.
 
 Full description and procedures: [docs/harness-ste.md](docs/harness-ste.md).
 The plan and the limits:

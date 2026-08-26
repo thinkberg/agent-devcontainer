@@ -61,7 +61,7 @@ the workspace.
 | No machine-readable rules | Every rule is prose. Nothing can test it. |
 | No task contract | The scope of a run is an idea, not a value. |
 | No pre-action control | A forbidden edit or command runs, then you find it. |
-| Agent-writable agent state | `.claude-devcontainer` is mounted read-write. The agent can edit its own settings and hooks. |
+| Agent-writable agent state | `.claude-devcontainer` and `.codex-devcontainer` are mounted read-write. The agent can edit its own settings and hooks. |
 | No completion gate | The agent declares that it is done. Nothing tests the claim. |
 | Push is unmediated | The agent holds the PAT. It can push at any time. |
 | No tests for the rules | Nobody knows if a rule still blocks what it must block. |
@@ -151,6 +151,48 @@ policy.** These keys matter most:
 `allowManagedHooksOnly` closes the largest hole in the template today.
 `.claude-devcontainer` is a read-write mount. Without that key, the
 agent can delete its own hooks from `~/.claude/settings.json`.
+
+### Codex: `/etc/codex/requirements.toml`
+
+Codex reads a root-owned requirements file with the same standing:
+`.codex-devcontainer` is a read-write mount for the same reason, and the
+requirements file is the key that makes that safe. It is in the image,
+it belongs to root, and only a host-side rebuild changes it.
+
+| Key | Effect |
+|-----|--------|
+| `allow_managed_hooks_only = true` | Only the harness hooks run. Hooks from user, project, session and plugin sources are skipped. |
+| `allowed_approval_policies = ["never"]` | The container is the sandbox; no prompt path is offered. |
+| `allowed_sandbox_modes` | The permitted `-s` values. **Must include `read-only`**, or Codex refuses to start at all — `login` included. |
+| `[features] hooks = true` | Hooks on. `apps`, `plugins` and `computer_use` are off. |
+| `[mcp_servers]` (empty table) | An explicit empty allowlist. A server the agent configures is loaded as `disabled: requirements`. |
+| `[hooks] managed_dir` | Where the managed hook programs live: `/usr/local/lib/harness`. |
+| `check_for_update_on_startup = false` | The image pins the version. |
+
+Measured against `codex-cli 0.149.1` in the container. Each attempt tried
+to write a `.py` file that the phase gate must deny; the harness message
+in the transcript proves the managed hook ran, rather than Codex having
+failed for some other reason.
+
+| Attempt | Result |
+|---------|--------|
+| no flag (baseline) | denied by `phase-gate` |
+| `--dangerously-bypass-hook-trust` | denied |
+| `--dangerously-bypass-approvals-and-sandbox` | denied |
+| `--ignore-user-config` | denied |
+| `--ignore-rules` | denied |
+| `--disable hooks` | denied — a managed hook is not a feature the invocation can switch off |
+| `-c hooks={}`, `-c hooks.PreToolUse=[]` | denied |
+| a hostile `~/.codex/config.toml` (`features.hooks = false`, its own `managed_dir`, its own PreToolUse) | denied; Codex logged `hook: PreToolUse Blocked` |
+| an MCP server in that same file | `disabled: requirements (/etc/codex/requirements.toml)`; it did not run |
+| the agent writing `~/.codex/config.toml` (shell redirect, `apply_patch`) | denied by `protected-paths` |
+| the agent running `codex mcp add` as a shell command | **the file was written** — see §15 |
+
+The flags read as bypasses and are not. `--dangerously-bypass-hook-trust`
+makes untrusted hooks run, it does not stop the managed ones.
+`--ignore-rules` is about Codex execpolicy `.rules`, not this registry.
+`--ignore-user-config` skips `config.toml`, which is not where the
+harness lives.
 
 `policyHelper` is the compiler seat. It reads the registry and the
 frozen contract, and it emits the managed settings for this one run. It
@@ -445,6 +487,21 @@ gives.
   tool paths can miss them.
 - The rule files in the workspace are agent-writable. Only the image
   copy decides. `policy-integrity` reports the difference.
+- Under Codex, `check-tickets-after-change` is a reminder, not a
+  guarantee. Claude Code calls `PostToolUse` after a successful tool
+  only; Codex also calls it after a **failed** shell command, and its
+  `tool_response` for a shell tool is the raw output text with no exit
+  status anywhere in the payload. A failing `bin/check-tickets` clears
+  the dirty flag too. The session is still forced to run the check; it
+  is not forced to make it pass.
+- `protected-paths` reads shell commands for write syntax — redirects,
+  `cp`, `sed -i` and the like. A program that writes a protected file as
+  a side effect is invisible to it. `codex mcp add` is the known case:
+  it writes `~/.codex/config.toml`, which the same rule denies when the
+  agent writes it directly. The blast radius is bounded by the layer
+  below — an MCP server added that way is refused by the requirements
+  file — but the general shape is a limit of the rule, not of that one
+  command.
 - "Keep the code simple and readable" has no mechanical test. It stays a
   human review point, forever.
 - Managed settings from a file do not apply to a cloud session on
