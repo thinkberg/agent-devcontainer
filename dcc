@@ -43,6 +43,17 @@ if [ "${1:-}" = init ]; then
     cp -r "$TEMPLATE" .devcontainer
     # perl -pi, not sed -i: BSD sed (macOS) wants -i '' and GNU sed wants -i
     grep -rl PROJECTNAME .devcontainer | xargs -r perl -pi -e "s/PROJECTNAME/$name/g"
+    # the sidecar subnet must be unique per project on this host: the first
+    # 172.30.N.0/24 no podman network uses (dcc.conf SUBNET and the
+    # DEVCONTAINER_SUBNET the firewall reads must agree, so both files)
+    # ponytail: podman networks only; a host route on the range still collides
+    used=$($ENGINE network inspect $($ENGINE network ls -q) -f '{{range .Subnets}}{{.Subnet}} {{end}}' 2>/dev/null || true)
+    for n in {0..255}; do
+        case " $used " in *" 172.30.$n.0/24 "*) continue ;; esac
+        perl -pi -e "s|172\.30\.0\.0/24|172.30.$n.0/24|g" .devcontainer/dcc.conf .devcontainer/devcontainer.json
+        echo "sidecar subnet 172.30.$n.0/24"
+        break
+    done
     # the claude state dir holds the container's auth token — never commit it
     if [ -d .git ] && ! grep -qxF '.claude-devcontainer/' .gitignore 2>/dev/null; then
         echo '.claude-devcontainer/' >> .gitignore
