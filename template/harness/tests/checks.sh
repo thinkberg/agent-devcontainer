@@ -148,5 +148,8 @@ echo "== harness check (the gate's dry run)"
 gq "$B" tag v1.0.2   # drift again: released past the pin
 out=$("$H" check 2>&1); rc=$?; grep -q 'FAIL  versions-repin' <<<"$out" && grep -q 'ok    hotfix-must-land' <<<"$out" && [ $rc -eq 1 ] && pass=$((pass+1)) || { fail=$((fail+1)); echo "FAIL [check: reports the failing rule, exit 1] rc=$rc"; echo "$out"; }
 sed -i "s/backend_tag: v1.0.1/backend_tag: v1.0.2/" "$D/ansible/versions.yml"; gq "$D" commit -q -am repin2
+printf -- '- [x] gate\n' >"$P/reviews/2026-08-26-gate.md"
+out=$("$H" check 2>&1); rc=$?; grep -q 'FAIL  review-tick-has-date.*2026-08-26-gate.md' <<<"$out" && grep -q '(2 files)' <<<"$out" && [ $rc -eq 1 ] && pass=$((pass+1)) || { fail=$((fail+1)); echo "FAIL [check: a per-file rule runs over the matching workspace files] rc=$rc"; echo "$out"; }
+rm "$P/reviews/2026-08-26-gate.md"
 out=$("$H" check 2>&1); rc=$?; [ $rc -eq 0 ] && pass=$((pass+1)) || { fail=$((fail+1)); echo "FAIL [check: all ok exits 0]"; echo "$out"; }
 rm -rf "$W" "$FB" "$FAKE_PRVIEW" "$MERGED"

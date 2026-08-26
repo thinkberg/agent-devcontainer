@@ -104,11 +104,37 @@ case ${1:-} in
     check)
         . "$HERE/../dispatch.sh"; shift; base=; [ "${1:-}" = --base ] && base=$2
         rc=0
-        while IFS=$'\t' read -r id run; do
+        # A per-file rule ({file} in its template) has no edited file at the
+        # gate: it runs once for every workspace file that matches its
+        # `paths`, and reports the worst result (error > violation > approval).
+        # ponytail: one find per gate run, hidden dirs and node_modules pruned;
+        # switch to git ls-files per repo if a workspace makes this slow
+        files=$(find "$ROOT" -mindepth 1 \( -name '.*' -o -name node_modules \) -prune -o -type f -print | sed "s|^$ROOT/||")
+        gate_files() {   # gate_files <run> <paths-json>
+            local run=$1 rel g c n=0 err= viol= need= globs
+            mapfile -t globs < <(jq -r '.[]' <<<"$2")
+            [ ${#globs[@]} -gt 0 ] || { echo "per-file rule without check.paths"; return 3; }
+            while IFS= read -r rel; do
+                [ -n "$rel" ] || continue
+                for g in "${globs[@]}"; do
+                    [[ $rel == $g ]] || continue
+                    n=$((n+1)); c=0; o=$(run_checker "$run" "$rel" </dev/null) || c=$?
+                    [ $c -eq 0 ] || printf '%s\n' "$o"       # only findings, not the chatter of passing files
+                    case $c in 0) ;; 1) viol=1;; 2) need=1;; *) err=1;; esac
+                    break
+                done
+            done <<<"$files"
+            echo "($n files)"
+            if [ -n "$err" ]; then return 3; elif [ -n "$viol" ]; then return 1; elif [ -n "$need" ]; then return 2; fi
+            return 0
+        }
+        while IFS=$'\t' read -r id run paths; do
             [ -n "$base" ] && run="$run --base $base"
-            crc=0; out=$(run_checker "$run" "" </dev/null) || crc=$?
-            case $crc in 0) printf '  ok    %-26s\n' "$id";; 1) printf '  FAIL  %-26s %s\n' "$id" "${out//$'\n'/; }"; rc=1;; 2) printf '  NEEDS %-26s %s\n' "$id" "${out//$'\n'/; }"; rc=1;; *) printf '  ERROR %-26s %s\n' "$id" "${out//$'\n'/; }"; rc=1;; esac
-        done < <(rules_with_trigger gate | jq -r 'select(.check.run) | [.id, .check.run] | @tsv')
+            crc=0
+            if [[ $run == *'{file}'* ]]; then out=$(gate_files "$run" "$paths") || crc=$?
+            else out=$(run_checker "$run" "" </dev/null) || crc=$?; fi
+            case $crc in 0) printf '  ok    %-26s %s\n' "$id" "${out//$'\n'/; }";; 1) printf '  FAIL  %-26s %s\n' "$id" "${out//$'\n'/; }"; rc=1;; 2) printf '  NEEDS %-26s %s\n' "$id" "${out//$'\n'/; }"; rc=1;; *) printf '  ERROR %-26s %s\n' "$id" "${out//$'\n'/; }"; rc=1;; esac
+        done < <(rules_with_trigger gate | jq -r 'select(.check.run) | [.id, .check.run, ((.check.paths // []) | tojson)] | @tsv')
         exit $rc ;;
     *) die "usage: harness status | steps | rules [--step <name>] | phase <name> [opts] | approve <plan> [--scope g…] | approve-release <repo> <pr> | check [--base REF]" ;;
 esac

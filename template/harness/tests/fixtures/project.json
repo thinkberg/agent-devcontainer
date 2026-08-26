@@ -52,7 +52,10 @@
       "id": "review-tick-has-date",
       "class": "verify",
       "step": "verify",
-      "trigger": "post_write",
+      "trigger": [
+        "post_write",
+        "gate"
+      ],
       "text": "A ticked review box carries a dated note.",
       "check": {
         "paths": [

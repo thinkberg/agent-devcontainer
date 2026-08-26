@@ -71,7 +71,7 @@ directories for these paths.
 | `hooks/stop-checks.sh` | Runs when the session stops. Runs the `stop` checkers. A `block` rule blocks the session end one time in each session. A `warn` rule becomes a system message. |
 | `hooks/ticket-state.sh` | Runs after an edit and at the session end. If the session changed tickets, the session cannot stop until `bin/check-tickets` ran without findings. |
 | `checkers/` | Eight generic checkers. Refer to A.6. |
-| `tests/run.sh` | 198 tests on a test workspace. |
+| `tests/run.sh` | 199 tests on a test workspace. |
 
 ### A.4 The hook contract
 
@@ -142,7 +142,7 @@ placeholders:
 | `{checkers}` | The directory of the generic checkers. |
 | `{project}` | The directory of the project overlay (`.devcontainer/rules/`). |
 | `{root}` | The workspace root. |
-| `{file}` | The edited file. The path starts at the root. |
+| `{file}` | The edited file. The path starts at the root. In `harness check`, each workspace file that matches `check.paths`, one run for each file. |
 | `{repo}` | The first path part of `{file}`. |
 
 A checker that has a configuration reads the configuration from the
@@ -163,7 +163,7 @@ the project paths.
 | `harness steps` | agent | Shows the work procedure with a mark on the phase of the run. |
 | `harness rules [--step <name>]` | agent | Shows the rules. With `--step`, shows the rules of one step. |
 | `harness phase <name> [--ticket <repo>#<n>] [--plan <path>] [--ponytail-reviewed]` | agent | Moves the run to a phase. The command examines the precondition of the phase. If the precondition is not satisfactory, the command exits with code 1 and tells the cause. |
-| `harness check [--base REF]` | agent; operator with `dcc check` | Runs the `gate` checkers. Shows the result of each rule. |
+| `harness check [--base REF]` | agent; operator with `dcc check` | Runs the `gate` checkers. A rule with `{file}` in `check.run` runs once for each workspace file that matches `check.paths`. Shows the result of each rule. |
 | `harness approve <plan> [--scope <glob>…]` | operator with `dcc approve` | Writes an approval token for a committed plan. |
 | `harness approve-release <repo> <pr>` | operator with `dcc approve-release` | Writes an approval token for a Release PR at the PR head. |
 
@@ -412,6 +412,8 @@ The agent cannot write these paths in all phases.
    `stop` for the session end. Use `gate` for `harness check`. Use
    `pre_bash` for a check before a command.
 3. For `post_write`, set `check.paths` to the files that cause the check.
+   A `gate` rule with `{file}` in `check.run` also needs `check.paths`:
+   `harness check` runs the checker for each file that matches.
 4. For `pre_bash`, set `check.when` to the command pattern.
 5. Set `check.run` to the checker and the target. Example:
    `"{checkers}/hugo-warning-clean {root}/www"`.
