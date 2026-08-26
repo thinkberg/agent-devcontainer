@@ -13,8 +13,8 @@
 # A clean merge is applied; a conflict leaves your file untouched and
 # writes <file>.conflict with the usual markers for you to resolve.
 # template.rev records the template commit the project is at.
-# rules/, empty.d/, db-init.d/ and files the template does not have are
-# yours and never touched.
+# rules/ (seeded when absent, as dcc init does), empty.d/, db-init.d/ and
+# files the template does not have are yours and never touched.
 #
 # A project without template.rev (initialized before this script existed)
 # has no base to merge from: a configuration file that differs from the
@@ -57,8 +57,13 @@ fetch "$sha" "$T/new"
 # running script is swapped, not overwritten
 dirs=" "
 for d in "$T"/new/*/; do
-    d=$(basename "$d"); [ "$d" != rules ] || continue
-    if [ -d "$DC/$d" ] && ! diff -rq "$T/new/$d" "$DC/$d" >/dev/null 2>&1; then rm -rf "${DC:?}/$d"; echo "replaced $d/"; fi
+    d=$(basename "$d")
+    if [ "$d" = rules ]; then   # the project overlay is yours; seeded only when absent, as dcc init does
+        [ -d "$DC/rules" ] || { cp -a "$T/new/rules" "$DC/rules"; echo "added rules/ (project overlay, seeded)"; }
+        continue
+    fi
+    if [ ! -d "$DC/$d" ]; then echo "added $d/"
+    elif ! diff -rq "$T/new/$d" "$DC/$d" >/dev/null 2>&1; then rm -rf "${DC:?}/$d"; echo "replaced $d/"; fi
     dirs="$dirs$d/ "
 done
 while IFS= read -r f; do
