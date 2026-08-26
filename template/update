@@ -43,7 +43,7 @@ fetch() {   # fetch <rev> <dir>: template/ of the repository at <rev>, substitut
     mv "$T"/dl/*/template "$2"; rm -rf "$T/dl"
     # perl -pi, not sed -i: BSD sed (macOS) wants -i '' and GNU sed wants -i
     # not this script: its own code names the placeholders
-    find "$2" -type f ! -name update | xargs grep -lE 'PROJECTNAME|172\.30\.0\.0/24' | xargs -r perl -pi -e "s/PROJECTNAME/$NAME/g; s|172\\.30\\.0\\.0/24|$SUBNET|g"
+    find "$2" -type f ! -name update | xargs grep -lE 'PROJECTNAME|172\.30\.0\.0/24' | xargs -r perl -pi -e "s/PROJECTNAME/$NAME/g; s|172\\.30\\.0\\.0/24|$SUBNET|g" || true
 }
 
 sha=$(git ls-remote "https://github.com/$REPO.git" "$REF" | head -1 | cut -f1); sha=${sha:-$REF}
