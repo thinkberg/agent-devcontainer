@@ -230,6 +230,14 @@ The harness does not guarantee that the agent knows a rule. A rule
 without a mechanical test is an approval point for a person, or a risk
 that you accept.
 
+Two rules give less with Codex than with Claude Code. The cause is the
+hook data of the agent, not the rule:
+
+| Rule | The difference with Codex |
+|------|---------------------------|
+| `check-tickets-after-change` | Codex calls the hook after a command that fails, and Codex does not give the exit status. Thus a `bin/check-tickets` that fails also makes the session clean. The session must run the check. The harness does not enforce that the check gives a good result. |
+| `protected-paths` | The rule reads the shell command for write syntax. A program that writes a protected file as a secondary result is not visible. Example: `codex mcp add` writes `~/.codex/config.toml`. |
+
 ---
 
 <!-- ste: procedure -->
