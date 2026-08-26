@@ -3,7 +3,7 @@
 # created under ~/.cache (the phase gate always-allows /tmp).
 
 W=$(mktemp -d -p "$HOME/.cache"); export CLAUDE_PROJECT_DIR=$W HARNESS_AGENT_DIR=$W/.agent HARNESS_APPROVAL_DIR=$W/.approvals
-CK=$HOOKS/../checkers; POST=$HOOKS/post-write.sh; STOP=$HOOKS/stop-checks.sh
+CK=$HERE/../checkers; post() { "$H" hook post-write "$@"; }; stop_() { "$H" hook stop-checks "$@"; }; POST=post; STOP=stop_
 mkrepo() { mkdir -p "$1" && git -C "$1" init -q -b main && git -C "$1" commit -q --allow-empty -m init; }
 gq() { git -C "$1" "${@:2}"; }
 wj() { jq -n --arg f "$1" --arg cwd "$W" '{session_id:"t3",tool_name:"Write",cwd:$cwd,tool_input:{file_path:$f,content:"x"}}'; }
@@ -13,7 +13,7 @@ expect_rc() { local want=$1 label=$2; shift 2; "$@" >/dev/null 2>&1 </dev/null; 
     if [ "$got" = "$want" ]; then pass=$((pass+1)); else fail=$((fail+1)); echo "FAIL [$label] wanted exit $want, got $got"; fi; }
 mkrepo "$W/planning"; mkrepo "$W/specs"; mkrepo "$W/deployment"; mkrepo "$W/backend"; mkrepo "$W/app"; mkdir -p "$W/www"
 B=$W/backend; A=$W/app; P=$W/planning; S=$W/specs; D=$W/deployment
-MERGED=$(mktemp); ( ROOT=$W; . "$HOOKS/../lib.sh"; cp "$RULES" "$MERGED" )   # what the dispatcher hands a checker
+MERGED=$(mktemp); "$H" rules --json >"$MERGED"   # what the dispatcher hands a checker
 ckm() { HARNESS_RULES=$MERGED "$CK/$1" "${@:2}"; }   # a checker that reads its config from the registry
 
 echo "== spec-section-stability"

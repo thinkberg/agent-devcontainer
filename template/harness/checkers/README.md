@@ -18,3 +18,8 @@ with `{checkers}` (this directory) or `{project}` (the project overlay's
 the rules with trigger `gate` on demand; the hooks run the rest at their
 trigger. Checkers that need configuration read it from the merged
 registry (`HARNESS_RULES`, exported by the dispatcher).
+
+`check.run` is a program and its arguments, split like a shell splits a
+line (quotes hold), with the placeholders substituted in each argument.
+It is not a shell line: no pipes, no `&&`, no redirects. A checker that
+needs those is a script.

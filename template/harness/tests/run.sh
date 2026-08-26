@@ -6,7 +6,7 @@
 # route. Keep adding cases: a violation seen in production becomes a test.
 set -uo pipefail
 HERE=$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")
-HOOKS=$HERE/../hooks
+H=$HERE/../harness.py
 export HARNESS_RULES=$HERE/../rules.json HARNESS_PROJECT_RULES=$HERE/fixtures/project.json
 WS=$(mktemp -d -p "${HOME:-/var/tmp}/.cache")     # a made-up workspace root; paths need not exist
 export CLAUDE_PROJECT_DIR=$WS
@@ -33,7 +33,7 @@ expect() {
 expect_exit() { local want=$1 label=$2; shift 2; local got; "$@" >/dev/null 2>&1; got=$?
     if [ "$got" = "$want" ]; then pass=$((pass+1)); else fail=$((fail+1)); echo "FAIL [$label] wanted exit $want, got $got"; fi; }
 
-PB=$HOOKS/pre-bash.sh; PW=$HOOKS/pre-write.sh; TS=$HOOKS/ticket-state.sh
+pb() { "$H" hook pre-bash "$@"; }; pw() { "$H" hook pre-write "$@"; }; ts() { "$H" hook ticket-state "$@"; }; PB=pb; PW=pw; TS=ts
 P=$WS/planning
 
 echo "== git-stage-explicit (incident 2026-07-22)"
@@ -151,8 +151,8 @@ expect allow "$PB" "$(bash_json "git -C $P add -A")" "off: pre-bash makes no dec
 expect allow "$PW" "$(edit_json "$WS/www/static/legal/avv-de-v1.2.pdf")" "off: pre-write makes no decision"
 "$TS" post <<<"$(bash_json "$P/bin/set-status review backend#12")" >/dev/null
 expect_exit 0 "off: a dirty ticket session may stop" "$TS" stop <<<"$(jq -n '{session_id:"t1"}')"
-out=$("$HOOKS/stop-checks.sh" <<<'{"session_id":"t1"}' 2>&1); [ -z "$out" ] && pass=$((pass+1)) || { fail=$((fail+1)); echo "FAIL [off: stop-checks silent]"; }
-out=$(CLAUDE_PROJECT_DIR=$WS HARNESS_AGENT_DIR=$(mktemp -d) "$HOOKS/../bin/harness" status | head -1); grep -q 'OFF' <<<"$out" && pass=$((pass+1)) || { fail=$((fail+1)); echo "FAIL [off: status says OFF] $out"; }
+out=$("$H" hook stop-checks <<<'{"session_id":"t1"}' 2>&1); [ -z "$out" ] && pass=$((pass+1)) || { fail=$((fail+1)); echo "FAIL [off: stop-checks silent]"; }
+out=$(CLAUDE_PROJECT_DIR=$WS HARNESS_AGENT_DIR=$(mktemp -d) "$H" status | head -1); grep -q 'OFF' <<<"$out" && pass=$((pass+1)) || { fail=$((fail+1)); echo "FAIL [off: status says OFF] $out"; }
 rm -f "$HARNESS_OFF"
 expect deny:git-stage-explicit "$PB" "$(bash_json "git -C $P add -A")" "on again: denies"
 "$TS" post <<<"$(bash_json "$P/bin/check-tickets")" >/dev/null
@@ -172,6 +172,9 @@ out=$(run_ov "$PW" <<<"$(edit_json "$WS/planning/.devcontainer/x")"); grep -q 'p
 echo '{ corrupt' >"$OV"
 out=$(run_ov "$PB" <<<"$(bash_json 'ls')"); grep -q 'harness-registry' <<<"$out" && pass=$((pass+1)) || { fail=$((fail+1)); echo "FAIL [overlay: corrupt overlay fails closed]"; }
 out=$(HARNESS_PROJECT_RULES=/nonexistent "$PB" <<<"$(bash_json 'initdb x')"); grep -q 'db-no-improvise' <<<"$out" && pass=$((pass+1)) || { fail=$((fail+1)); echo "FAIL [no overlay: generic registry alone works]"; }
+jq '.rules += [{"id":"bad-regex","class":"enforce","step":"ops","trigger":"pre_bash","text":"x","check":{"regex":"("}}]' "$HARNESS_PROJECT_RULES" >"$OV"
+out=$(run_ov "$PB" <<<"$(bash_json 'ls')"); grep -q 'harness-registry' <<<"$out" && pass=$((pass+1)) || { fail=$((fail+1)); echo "FAIL [overlay: a regex that does not compile fails closed]"; }
+out=$(HARNESS_RULES=/nonexistent "$PB" <<<"$(bash_json 'ls')"); grep -q 'harness-registry' <<<"$out" && pass=$((pass+1)) || { fail=$((fail+1)); echo "FAIL [generic registry missing fails closed]"; }
 rm -f "$OV"
 
 # real fail-closed checks: unreadable registry denies, crashing jq path denies
@@ -185,7 +188,7 @@ echo "== phase-gate (the operator's process: brainstorm -> plan -> review -> app
 T=$(mktemp -d -p "${HOME:-/var/tmp}/.cache"); mkdir -p "$T/planning/plans" "$T/planning/docs" "$T/backend/src" "$T/backend/docs"
 git -C "$T/planning" init -q && git -C "$T/planning" -c user.name=t -c user.email=t@t -c commit.gpgsign=false commit -q --allow-empty -m init
 export CLAUDE_PROJECT_DIR=$T HARNESS_AGENT_DIR=$T/.agent HARNESS_APPROVAL_DIR=$T/.approvals
-H=$HOOKS/../bin/harness; PLAN=planning/plans/2026-08-24-x.md
+PLAN=planning/plans/2026-08-24-x.md
 tj() { jq -n --arg f "$1" --arg cwd "$T" '{session_id:"t2",tool_name:"Write",cwd:$cwd,tool_input:{file_path:$f,content:"x"}}'; }
 tb() { jq -n --arg c "$1" --arg cwd "$T" '{session_id:"t2",tool_name:"Bash",cwd:$cwd,tool_input:{command:$c}}'; }
 gitp() { git -C "$T/planning" -c user.name=t -c user.email=t@t -c commit.gpgsign=false "$@"; }

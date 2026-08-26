@@ -31,7 +31,7 @@ COPY harness/ /usr/local/lib/harness/
 COPY managed-settings.json /etc/claude-code/managed-settings.json
 RUN rm -rf /usr/local/lib/harness/tests \
     && chmod -R u=rwX,go=rX /usr/local/lib/harness /etc/claude-code \
-    && ln -s /usr/local/lib/harness/bin/harness /usr/local/bin/harness
+    && ln -s /usr/local/lib/harness/harness.py /usr/local/bin/harness
 
 # NOTE: the firewall script name must stay unique — the claude-code feature
 # installs its own /usr/local/bin/init-firewall.sh after this Dockerfile runs
