@@ -147,12 +147,6 @@ expect_exit 0 "clean session may stop" "$TS" stop <<<"$stop_json"
 expect_exit 2 "dirty session is blocked" "$TS" stop <<<"$stop_json"
 "$TS" post <<<"$(bash_json "$P/bin/check-tickets")" >/dev/null
 expect_exit 0 "check-tickets clears it" "$TS" stop <<<"$stop_json"
-failed_dirty=$(bash_json "$P/bin/set-status review backend#12" | jq '.session_id="codex-failed"')
-failed_check=$(bash_json "$P/bin/check-tickets" | jq '.session_id="codex-failed" | .tool_response={exit_code:1}')
-failed_stop=$(jq -n '{session_id:"codex-failed",hook_event_name:"Stop"}')
-"$TS" post <<<"$failed_dirty" >/dev/null
-"$TS" post <<<"$failed_check" >/dev/null
-expect_exit 2 "Codex failed check-tickets stays dirty" "$TS" stop <<<"$failed_stop"
 "$TS" post <<<"$(bash_json "$P/bin/add-ticket --title x --estimate 1")" >/dev/null
 "$TS" stop <<<"$stop_json" >/dev/null 2>&1; "$TS" stop <<<"$stop_json" >/dev/null 2>&1; "$TS" stop <<<"$stop_json" >/dev/null 2>&1
 expect_exit 0 "ceiling: 4th stop passes with a systemMessage" "$TS" stop <<<"$stop_json"

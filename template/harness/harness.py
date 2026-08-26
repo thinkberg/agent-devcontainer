@@ -327,15 +327,6 @@ def patch_targets(command):
         command, re.M) for path in m.groups() if path]
 
 
-def tool_succeeded(inp):
-    """Claude calls PostToolUse only on success; Codex also calls it on failure."""
-    response = inp.get("tool_response")
-    if not isinstance(response, dict):
-        return True
-    code = response.get("exit_code", response.get("exitCode"))
-    return code in (None, 0) and not response.get("is_error") and response.get("status") not in ("error", "failed")
-
-
 def state_dir():
     """session state: the agent dir when writable, else a per-user temp dir"""
     if os.path.isdir(AGENT) and os.access(AGENT, os.W_OK):
@@ -775,8 +766,11 @@ def hook_ticket_state(mode):
         if inp.get("tool_name") != "Bash":
             return
         cmd = (inp.get("tool_input") or {}).get("command") or ""
-        if grep(c.get("clean_on", ""), cmd) and tool_succeeded(inp):
-            # Claude calls this hook only on success; Codex includes the exit status.
+        if grep(c.get("clean_on", ""), cmd):
+            # Claude fires PostToolUse on success only; Codex also fires it after a
+            # FAILED Bash command, with no exit code in the payload — so a failing
+            # check-tickets clears the flag too. The reminder that you ran it holds
+            # for both agents; the guarantee that it passed does not under Codex.
             for p in (dirty, blocks):
                 if os.path.exists(p):
                     os.unlink(p)
