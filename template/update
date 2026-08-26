@@ -1,0 +1,102 @@
+#!/usr/bin/env bash
+# .devcontainer/update — bring this dev container up to date with the
+# template on GitHub, keeping the project's configuration. Self-contained:
+# needs git, curl, tar, perl; no clone of the template repository.
+#   .devcontainer/update [--since REV] [--ref REF]     (or: dcc update)
+#
+# Engine files — harness/, managed-settings.json, entry.sh, the firewall
+# and setup scripts, this script — are replaced by the template's version
+# (PROJECTNAME and the subnet substituted, as dcc init does).
+# Configuration files — devcontainer.json, Dockerfile, dcc.conf,
+# allowlist.txt — get a 3-way merge: the template version this project
+# was last updated from (template.rev), the new template, your file.
+# A clean merge is applied; a conflict leaves your file untouched and
+# writes <file>.conflict with the usual markers for you to resolve.
+# rules/, empty.d/, db-init.d/ and files the template does not have are
+# yours and never touched.
+#
+# A project without template.rev (initialized before this script existed)
+# has no base to merge from: a configuration file that differs from the
+# new template gets <file>.conflict = the new template version, and the
+# version is recorded so that the next update merges. --since REV names
+# the template commit you started from, if you know it — then it merges.
+# Afterwards: dcc rebuild.
+set -euo pipefail
+REPO=${DEVCONTAINER_TEMPLATE_REPO:-thinkberg/agent-devcontainer}
+REF=main
+MERGE="devcontainer.json Dockerfile dcc.conf allowlist.txt"   # yours + template: 3-way merge
+DC=$(cd "$(dirname "$0")" && pwd)
+NAME=$(basename "$(dirname "$DC")"); SUBNET=172.30.0.0/24
+[ ! -f "$DC/dcc.conf" ] || . "$DC/dcc.conf"
+since=; [ ! -f "$DC/template.rev" ] || since=$(cat "$DC/template.rev")
+while [ $# -gt 0 ]; do case $1 in
+    --since) since=${2:?}; shift 2 ;; --ref) REF=${2:?}; shift 2 ;;
+    *) echo "usage: update [--since REV] [--ref REF]" >&2; exit 1 ;;
+esac; done
+
+T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
+fetch() {   # fetch <rev> <dir>: template/ of the repository at <rev>, substituted for this project
+    mkdir -p "$T/dl"
+    curl -fsSL "https://github.com/$REPO/archive/$1.tar.gz" | tar -xz -C "$T/dl" \
+        || { echo "ERROR: cannot fetch $REPO at $1" >&2; exit 1; }
+    mv "$T"/dl/*/template "$2"; rm -rf "$T/dl"
+    # perl -pi, not sed -i: BSD sed (macOS) wants -i '' and GNU sed wants -i
+    grep -rlE 'PROJECTNAME|172\.30\.0\.0/24' "$2" | xargs -r perl -pi -e "s/PROJECTNAME/$NAME/g; s|172\\.30\\.0\\.0/24|$SUBNET|g"
+}
+
+sha=$(git ls-remote "https://github.com/$REPO.git" "$REF" | head -1 | cut -f1); sha=${sha:-$REF}
+[ "$sha" != "$since" ] || { echo "already at template ${sha:0:7}"; exit 0; }
+fetch "$sha" "$T/new"
+[ -z "$since" ] || fetch "$since" "$T/base"
+: >"$T/empty"
+
+# engine: the template's directories are replaced whole (stale files go
+# away); every other template file is copied — via mv, so that this
+# running script is swapped, not overwritten
+dirs=" "
+for d in "$T"/new/*/; do
+    d=$(basename "$d"); [ "$d" != rules ] || continue
+    if [ -d "$DC/$d" ] && ! diff -rq "$T/new/$d" "$DC/$d" >/dev/null 2>&1; then rm -rf "${DC:?}/$d"; echo "replaced $d/"; fi
+    dirs="$dirs$d/ "
+done
+while IFS= read -r f; do
+    case " $MERGE " in *" $f "*) continue ;; esac
+    case $f in rules/*) continue ;; esac
+    if [ ! -e "$DC/$f" ]; then what=added; elif cmp -s "$T/new/$f" "$DC/$f"; then continue; else what=replaced; fi
+    mkdir -p "$(dirname "$DC/$f")"
+    cp -p "$T/new/$f" "$DC/$f.new" && mv -f "$DC/$f.new" "$DC/$f"
+    case "$dirs" in *" ${f%%/*}/ "*) ;; *) echo "$what $f" ;; esac   # files of a replaced directory: one line above
+done < <(cd "$T/new" && find . -type f | sed 's|^\./||' | sort)
+
+# configuration: 3-way merge, or the fallback without a base
+conflicts=
+for f in $MERGE; do
+    new=$T/new/$f; mine=$DC/$f
+    [ -f "$new" ] || continue
+    [ -f "$mine" ] || { cp -p "$new" "$mine"; echo "added   $f"; continue; }
+    cmp -s "$mine" "$new" && continue
+    if [ -z "$since" ]; then
+        cp -p "$new" "$mine.conflict"; conflicts=1
+        echo "CHANGED $f — no template.rev to merge from; $f.conflict is the new template version"
+        continue
+    fi
+    base=$T/base/$f; [ -f "$base" ] || base=$T/empty
+    rc=0; git merge-file -p -L "$f (yours)" -L "template ${since:0:7}" -L "template ${sha:0:7}" "$mine" "$base" "$new" >"$T/merged" || rc=$?
+    if [ "$rc" -eq 0 ]; then
+        cmp -s "$mine" "$T/merged" || { cp "$T/merged" "$mine.new" && mv -f "$mine.new" "$mine"; echo "merged  $f"; }
+    elif [ "$rc" -lt 128 ]; then
+        cp "$T/merged" "$mine.conflict"; conflicts=1
+        echo "CONFLICT $f — left as it is; resolve $f.conflict ($rc conflict(s))"
+    else
+        conflicts=1; echo "ERROR   $f: git merge-file failed ($rc); left as it is"
+    fi
+done
+
+# the base of the next update: recorded when nothing is pending — or,
+# without a base, now: your files count as derived from this version
+if [ -z "$since" ] || [ -z "$conflicts" ]; then echo "$sha" >"$DC/template.rev"; fi
+if [ -n "$conflicts" ]; then
+    echo "template ${sha:0:7}: resolve the .conflict files, delete them, then run update again; then dcc rebuild"
+else
+    echo "template ${sha:0:7} applied — now: dcc rebuild"
+fi
