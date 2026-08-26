@@ -10,6 +10,9 @@
 #                      configured), optionally run cmd afterwards
 #   dcc rebuild         recreate the dev container (new image, fresh firewall);
 #                      the database and its data are untouched
+#   dcc update [--since REV]
+#                       bring .devcontainer up to date with the template on
+#                       GitHub (runs .devcontainer/update); then dcc rebuild
 #   dcc down            stop the dev container + database sidecar (data and
 #                      containers stay; next dcc up restarts them)
 #   dcc db reset        wipe the database sidecar + its data volume (re-inits
@@ -59,6 +62,8 @@ if [ "${1:-}" = init ]; then
         echo '.claude-devcontainer/' >> .gitignore
         echo "added .claude-devcontainer/ to .gitignore"
     fi
+    # the template version, for .devcontainer/update (3-way merge base)
+    git -C "$TEMPLATE" rev-parse HEAD >.devcontainer/template.rev 2>/dev/null || rm -f .devcontainer/template.rev
     echo "initialized .devcontainer for '$name'"
     echo "review .devcontainer/dcc.conf and devcontainer.json (masks, features, allowlist), then run: dcc"
     exit 0
@@ -132,6 +137,7 @@ exec_in() {   # run a command (default: interactive shell) inside as vscode
 case "$1" in
     up)      shift; up; [ $# -eq 0 ] || exec_in "$@" ;;
     rebuild) up --remove-existing-container ;;
+    update)  shift; exec "$ROOT/.devcontainer/update" "$@" ;;
     down)
         stopped=
         for c in "$CTR" "$DB"; do
@@ -182,5 +188,5 @@ case "$1" in
         running "$CTR" || up
         exec_in "$@"
         ;;
-    *) echo "usage: dcc [attach [cmd…]|up [cmd…]|rebuild|down|db reset|allow <domain>|approve <plan> [--scope g…]|approve-release <repo> <pr>|check|harness [on|off|status]|fw|root|init <name>]" >&2; exit 1 ;;
+    *) echo "usage: dcc [attach [cmd…]|up [cmd…]|rebuild|update|down|db reset|allow <domain>|approve <plan> [--scope g…]|approve-release <repo> <pr>|check|harness [on|off|status]|fw|root|init <name>]" >&2; exit 1 ;;
 esac

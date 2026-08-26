@@ -87,6 +87,7 @@ Step 2: Edit the copied files. The files are part of your project:
 | `.devcontainer/Dockerfile` | Other tools, in the marked section. |
 | `.devcontainer/allowlist.txt` | The domains that the agent can connect to. |
 | `.devcontainer/setup-project.sh` | Optional. Your project setup (venv, `npm ci`, …). Make it executable. |
+| `.devcontainer/update` | Brings the engine files up to date with the template on GitHub and merges your configuration files (see [Updates](#updates)). |
 | `.devcontainer/rules/rules.json` | The harness rules of the project (see [The safety harness](#the-safety-harness)). |
 
 To get new template files, copy the changed template files into your
@@ -175,6 +176,7 @@ Do not copy transcripts. They can contain secrets.
 | `dcc up <cmd>`       | Start the container and the database, then run `<cmd>`. Use this in scripts. |
 | `dcc down`           | Stop the container and the database. All data stays.                  |
 | `dcc rebuild`        | Build a new image and container. The database does not change.        |
+| `dcc update`         | Update `.devcontainer` from the template on GitHub, keep the configuration. Then `dcc rebuild`. |
 | `dcc db reset`       | Remove the database and its data.                                     |
 | `dcc allow <domain>` | Let egress through to one domain, until the next restart.             |
 | `dcc fw`             | Run the firewall again, for example after CDN addresses change.       |
@@ -194,6 +196,31 @@ Notes:
   is available only in interactive shells. For scripts, use
   `dcc up bash -ic '…'`, not `bash -c`.
 - To continue a stopped agent session, run `dcc attach claude -c`.
+
+## Updates
+
+The template changes. To get the changes into a project, run
+`dcc update` (or `.devcontainer/update`) in the project, then
+`dcc rebuild`. The script needs no clone of this repository: it reads
+the template from GitHub.
+
+- Engine files are replaced: `harness/`, `managed-settings.json`,
+  `entry.sh`, the firewall and setup scripts, and `update` itself.
+- Configuration files get a three-way merge: `devcontainer.json`,
+  `Dockerfile`, `dcc.conf`, `allowlist.txt`. The base is the template
+  version in `.devcontainer/template.rev` (written by `dcc init` and by
+  each update). A clean merge is applied. A conflict does not change
+  your file: the script writes `<file>.conflict` with conflict markers.
+  Resolve it, move the result over your file, delete the `.conflict`
+  file, and run `dcc update` again.
+- `rules/`, `empty.d/`, `db-init.d/` and files that are not in the
+  template stay as they are.
+
+A project from before `template.rev` existed has no base. The first
+update then writes `<file>.conflict` with the new template version for
+each configuration file that differs, and records the version. If you
+know the template commit the project started from, `dcc update --since
+<commit>` merges instead.
 
 ## Use the optional database
 
