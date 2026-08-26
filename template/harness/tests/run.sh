@@ -18,6 +18,7 @@ pass=0; fail=0
 
 bash_json() { jq -n --arg c "$1" --arg cwd "${2:-$WS}" '{session_id:"t1",tool_name:"Bash",cwd:$cwd,tool_input:{command:$c}}'; }
 edit_json() { jq -n --arg f "$1" --arg cwd "$WS" '{session_id:"t1",tool_name:"Write",cwd:$cwd,tool_input:{file_path:$f,content:"x"}}'; }
+patch_json() { jq -n --arg c "$1" --arg cwd "${2:-$WS}" '{session_id:"t1",tool_name:"apply_patch",cwd:$cwd,tool_input:{command:$c}}'; }
 
 # expect <deny:rule-id | allow> <hook> <json> <label>
 expect() {
@@ -121,6 +122,13 @@ expect deny:protected-paths "$PW" "$(edit_json "$WS/backend/.github/workflows/ci
 expect deny:protected-paths "$PW" "$(edit_json "$WS/.claude-devcontainer/settings.json")" "own settings"
 expect deny:protected-paths "$PW" "$(edit_json "/home/vscode/.claude/settings.json")" "own settings, container path"
 expect deny:protected-paths "$PW" "$(edit_json "$WS/planning/.devcontainer/allowlist.txt")" "policy file"
+expect deny:protected-paths "$PW" "$(patch_json '*** Begin Patch
+*** Update File: www/static/legal/avv-de-v1.2.pdf
+*** End Patch')" "Codex apply_patch"
+expect deny:protected-paths "$PW" "$(patch_json '*** Begin Patch
+*** Update File: www/content/de/agb.md
+*** Move to: www/static/legal/agb-v1.3.pdf
+*** End Patch')" "Codex apply_patch move target"
 expect deny:protected-paths "$PW" "$(bash_json "sed -i 's/a/b/' www/static/legal/avv-de-v1.2.pdf")" "bypass: sed -i"
 expect deny:protected-paths "$PW" "$(bash_json "echo x > $WS/out/y.txt")" "bypass: redirect"
 expect deny:protected-paths "$PW" "$(bash_json "cp a.md content/de/agb-v1-0.md" "$WS/www")" "bypass: cp, relative to cwd"
@@ -139,6 +147,12 @@ expect_exit 0 "clean session may stop" "$TS" stop <<<"$stop_json"
 expect_exit 2 "dirty session is blocked" "$TS" stop <<<"$stop_json"
 "$TS" post <<<"$(bash_json "$P/bin/check-tickets")" >/dev/null
 expect_exit 0 "check-tickets clears it" "$TS" stop <<<"$stop_json"
+failed_dirty=$(bash_json "$P/bin/set-status review backend#12" | jq '.session_id="codex-failed"')
+failed_check=$(bash_json "$P/bin/check-tickets" | jq '.session_id="codex-failed" | .tool_response={exit_code:1}')
+failed_stop=$(jq -n '{session_id:"codex-failed",hook_event_name:"Stop"}')
+"$TS" post <<<"$failed_dirty" >/dev/null
+"$TS" post <<<"$failed_check" >/dev/null
+expect_exit 2 "Codex failed check-tickets stays dirty" "$TS" stop <<<"$failed_stop"
 "$TS" post <<<"$(bash_json "$P/bin/add-ticket --title x --estimate 1")" >/dev/null
 "$TS" stop <<<"$stop_json" >/dev/null 2>&1; "$TS" stop <<<"$stop_json" >/dev/null 2>&1; "$TS" stop <<<"$stop_json" >/dev/null 2>&1
 expect_exit 0 "ceiling: 4th stop passes with a systemMessage" "$TS" stop <<<"$stop_json"
@@ -191,9 +205,13 @@ export CLAUDE_PROJECT_DIR=$T HARNESS_AGENT_DIR=$T/.agent HARNESS_APPROVAL_DIR=$T
 PLAN=planning/plans/2026-08-24-x.md
 tj() { jq -n --arg f "$1" --arg cwd "$T" '{session_id:"t2",tool_name:"Write",cwd:$cwd,tool_input:{file_path:$f,content:"x"}}'; }
 tb() { jq -n --arg c "$1" --arg cwd "$T" '{session_id:"t2",tool_name:"Bash",cwd:$cwd,tool_input:{command:$c}}'; }
+tp() { jq -n --arg c "$1" --arg cwd "$T" '{session_id:"t2",tool_name:"apply_patch",cwd:$cwd,tool_input:{command:$c}}'; }
 gitp() { git -C "$T/planning" -c user.name=t -c user.email=t@t -c commit.gpgsign=false "$@"; }
 # brainstorm (no state at all = fail closed to the most restrictive phase)
 expect deny:phase-gate "$PW" "$(tj "$T/backend/src/x.py")" "brainstorm: code denied"
+expect deny:phase-gate "$PW" "$(tp '*** Begin Patch
+*** Update File: backend/src/x.py
+*** End Patch')" "brainstorm: Codex patch denied"
 expect allow "$PW" "$(tj "$T/planning/docs/idea.md")" "brainstorm: planning md allowed"
 expect allow "$PW" "$(tj "$T/backend/docs/notes.md")" "brainstorm: docs md allowed"
 expect allow "$PW" "$(tj "/tmp/scratch.txt")" "brainstorm: /tmp allowed"

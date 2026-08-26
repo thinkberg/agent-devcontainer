@@ -1,4 +1,4 @@
-// Restricted dev container for a Claude Code agent (extracted from the
+// Restricted dev container for Claude Code and Codex (extracted from the
 // extracarts devcontainer). The workspace is mounted at the SAME path as on
 // the host so absolute paths (venv shebangs, IDE references, logs) agree on
 // both sides. Secrets are masked by mounts below — the `mounts` array IS the
@@ -46,6 +46,9 @@
     // ~/.claude is never mounted (host transcripts contain live secrets).
     // In a git repo, dcc init adds .claude-devcontainer/ to .gitignore.
     "source=${localWorkspaceFolder}/.claude-devcontainer,target=/home/vscode/.claude,type=bind",
+    // Codex login, configuration and session state. Kept separate from the
+    // host ~/.codex for the same reason as Claude state above.
+    "source=${localWorkspaceFolder}/.codex-devcontainer,target=/home/vscode/.codex,type=bind",
     // the one credential: scoped PAT (+ optional git identity and ssh
     // signing key), read-only; per-project dir on the host, fixed path
     // inside so the scripts stay generic

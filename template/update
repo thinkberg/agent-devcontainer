@@ -4,7 +4,8 @@
 # needs git, curl, tar, perl; no clone of the template repository.
 #   .devcontainer/update [--since REV] [--ref REF]     (or: dcc update)
 #
-# Engine files — harness/, managed-settings.json, entry.sh, the firewall
+# Engine files — harness/, managed-settings.json, codex-requirements.toml,
+# entry.sh, the firewall
 # and setup scripts, this script — are replaced by the template's version
 # (the project name and the subnet substituted, as dcc init does).
 # Configuration files — devcontainer.json, Dockerfile, dcc.conf,

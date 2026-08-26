@@ -1,5 +1,5 @@
 #!/usr/bin/env -S python3 -I
-# harness/harness.py — the safety harness engine: the Claude Code hooks,
+# harness/harness.py — the safety harness engine: Claude Code/Codex hooks,
 # the agent's CLI and the operator's approval commands, in one program.
 #
 #   harness.py hook pre-bash              PreToolUse  Bash
@@ -318,6 +318,22 @@ def deny(reason):
 
 def hook_root(inp):
     return os.environ.get("CLAUDE_PROJECT_DIR") or inp.get("cwd") or "."
+
+
+def patch_targets(command):
+    """Paths named by a Codex apply_patch command."""
+    return [path for m in re.finditer(
+        r"^\*\*\* (?:Add|Update|Delete) File: (.+)$|^\*\*\* Move to: (.+)$",
+        command, re.M) for path in m.groups() if path]
+
+
+def tool_succeeded(inp):
+    """Claude calls PostToolUse only on success; Codex also calls it on failure."""
+    response = inp.get("tool_response")
+    if not isinstance(response, dict):
+        return True
+    code = response.get("exit_code", response.get("exitCode"))
+    return code in (None, 0) and not response.get("is_error") and response.get("status") not in ("error", "failed")
 
 
 def state_dir():
@@ -640,6 +656,10 @@ def hook_pre_write():
         check_path(f)
         if f:
             touched(f)
+    elif tool == "apply_patch":
+        for f in patch_targets(ti.get("command") or ""):
+            check_path(f)
+            touched(f)
     elif tool == "Bash":
         for tok in write_targets(ti.get("command") or ""):
             check_path(tok)
@@ -653,28 +673,29 @@ def hook_post_write():
     has happened: findings go back on stderr with exit 2 (feedback, not a block)."""
     inp, raw = hook_input()
     ti = inp.get("tool_input") or {}
-    f = ti.get("file_path") or ti.get("notebook_path") or ""
-    if not f:
+    files = patch_targets(ti.get("command") or "") if inp.get("tool_name") == "apply_patch" else [
+        ti.get("file_path") or ti.get("notebook_path") or ""]
+    files = [f for f in files if f]
+    if not files:
         return
     set_root(hook_root(inp))
     if RULES is None:
         print("harness [harness-registry]: rule registry unreadable or overlay corrupt", file=sys.stderr)
         sys.exit(2)
-    abs_ = os.path.realpath(f)
-    if not abs_.startswith(ROOT + "/"):
-        return
-    rel = abs_[len(ROOT) + 1:]
-    note_touched(inp.get("session_id") or "nosession", rel)
     msgs = ""
-    for r in rules_with_trigger("post_write"):
-        c = check(r)
-        if not (c.get("run") and c.get("paths")):
+    for f in dict.fromkeys(files):
+        abs_ = os.path.realpath(f if f.startswith("/") else os.path.join(inp.get("cwd") or ROOT, f))
+        if not abs_.startswith(ROOT + "/"):
             continue
-        if not any(glob_match(rel, g) for g in c["paths"]):
-            continue
-        rc, out = run_checker(c["run"], rel, raw)
-        if rc != 0:
-            msgs += "harness [%s]: %s\n%s\n" % (r["id"], explain(rc), out)
+        rel = abs_[len(ROOT) + 1:]
+        note_touched(inp.get("session_id") or "nosession", rel)
+        for r in rules_with_trigger("post_write"):
+            c = check(r)
+            if not (c.get("run") and c.get("paths")) or not any(glob_match(rel, g) for g in c["paths"]):
+                continue
+            rc, out = run_checker(c["run"], rel, raw)
+            if rc != 0:
+                msgs += "harness [%s]: %s\n%s\n" % (r["id"], explain(rc), out)
     if msgs:
         sys.stderr.write(msgs)
         sys.exit(2)
@@ -754,8 +775,8 @@ def hook_ticket_state(mode):
         if inp.get("tool_name") != "Bash":
             return
         cmd = (inp.get("tool_input") or {}).get("command") or ""
-        if grep(c.get("clean_on", ""), cmd):
-            # PostToolUse fires on success only; a failing check-tickets lands in PostToolUseFailure
+        if grep(c.get("clean_on", ""), cmd) and tool_succeeded(inp):
+            # Claude calls this hook only on success; Codex includes the exit status.
             for p in (dirty, blocks):
                 if os.path.exists(p):
                     os.unlink(p)

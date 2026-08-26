@@ -133,7 +133,9 @@
         ".devcontainer/*", "*/.devcontainer/*",
         ".github/workflows/*", "*/.github/workflows/*",
         ".claude/settings*.json", "*/.claude/settings*.json",
-        "/home/vscode/.claude/settings.json", "/etc/claude-code/*", "/usr/local/lib/harness/*" ] }
+        ".codex/config.toml", "*/.codex/config.toml", ".codex-devcontainer/config.toml",
+        "/home/vscode/.claude/settings.json", "/home/vscode/.codex/config.toml",
+        "/etc/claude-code/*", "/etc/codex/*", "/usr/local/lib/harness/*" ] }
     },
     {
       "id": "release-ships-tip", "class": "approve", "step": "release", "trigger": "pre_bash",

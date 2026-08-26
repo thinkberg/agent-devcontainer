@@ -11,7 +11,7 @@ The document has two types of sections:
   these sections.
 - **Procedure** sections give the steps that you do. Each step is one
   task. Procedures for the **operator** (a person, on the host) and
-  procedures for the **agent** (Claude Code, in the container) are in
+  procedures for the **agent** (Claude Code or Codex, in the container) are in
   different sections.
 
 Applicable documents: the source README
@@ -33,7 +33,7 @@ The harness has four parts:
 
 | Part | Function |
 |------|----------|
-| Hooks | Programs that Claude Code runs before a tool call, after a tool call, and at the end of a session. |
+| Hooks | Programs that Claude Code or Codex runs before a tool call, after a tool call, and at the end of a session. |
 | CLI `harness` | The command that shows and changes the run state. The agent uses the CLI. The operator uses the CLI for approvals, through `dcc`. |
 | Checkers | Small programs. Each checker examines one condition in the workspace. |
 | Registry `rules.json` | The list of rules and the default work procedure. |
@@ -44,6 +44,7 @@ The harness has four parts:
 |----------|-------------|-------|
 | `/usr/local/lib/harness` | The harness: engine, hooks, checkers, generic rules. The image build copies the harness from `.devcontainer/harness/`, a copy of `template/harness/`. | root |
 | `/etc/claude-code/managed-settings.json` | The settings file that connects the hooks to Claude Code. | root |
+| `/etc/codex/requirements.toml` | The requirements file that connects the hooks to Codex. | root |
 | `<workspace>/.devcontainer/rules/` | The project overlay: the rules, paths and checkers of the project. The container mounts the overlay with write protection. | the operator |
 | `$HARNESS_AGENT_DIR` (default `/run/harness/agent`) | The run state (`run.json`). | the agent |
 | `$HARNESS_APPROVAL_DIR` (default `/run/harness/approvals`) | The approval tokens. | root |
