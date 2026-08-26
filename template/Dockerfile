@@ -1,11 +1,16 @@
-# Restricted dev container for a Claude Code agent. Toolchain (node, gh,
-# claude) comes from devcontainer features on top of this image; a database,
-# if any, runs as a sidecar service (see dcc), not in here.
+# Restricted dev container for coding agents. Node, gh and Claude come from
+# devcontainer features; Codex is installed below. A database, if any, runs as
+# a sidecar service (see dcc), not in here.
 FROM mcr.microsoft.com/devcontainers/base:ubuntu-24.04
 
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
         ipset iptables dnsutils jq curl ca-certificates python3 \
     && rm -rf /var/lib/apt/lists/*
+
+ARG CODEX_VERSION=latest
+RUN curl -fsSL https://chatgpt.com/codex/install.sh \
+        | env CODEX_RELEASE="$CODEX_VERSION" CODEX_NON_INTERACTIVE=1 \
+              CODEX_INSTALL_DIR=/usr/local/bin CODEX_HOME=/usr/local/lib/codex sh
 
 # ---- project tools (edit freely) ------------------------------------------
 # client for the postgres sidecar:
@@ -22,15 +27,15 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-ins
 # ---- safety harness -------------------------------------------------------
 # The engine (hooks, checkers, generic rules) and the managed settings that
 # wire it. Both root-owned in the image: vscode can run them, not change
-# them; a change is a host-side rebuild, like allowlist.txt. Claude Code
-# reads /etc/claude-code/managed-settings.json above every other settings
-# level, and allowManagedHooksOnly means the agent's own settings cannot
-# add or remove hooks. The project's rules stay in the workspace
-# (.devcontainer/rules/, mounted read-only by devcontainer.json).
+# them; a change is a host-side rebuild, like allowlist.txt. Claude Code and
+# Codex read their root-owned managed policy, which permits only these hooks.
+# The project's rules stay in the workspace (.devcontainer/rules/, mounted
+# read-only by devcontainer.json).
 COPY harness/ /usr/local/lib/harness/
 COPY managed-settings.json /etc/claude-code/managed-settings.json
+COPY codex-requirements.toml /etc/codex/requirements.toml
 RUN rm -rf /usr/local/lib/harness/tests \
-    && chmod -R u=rwX,go=rX /usr/local/lib/harness /etc/claude-code \
+    && chmod -R u=rwX,go=rX /usr/local/lib/harness /etc/claude-code /etc/codex \
     && ln -s /usr/local/lib/harness/harness.py /usr/local/bin/harness
 
 # NOTE: the firewall script name must stay unique — the claude-code feature

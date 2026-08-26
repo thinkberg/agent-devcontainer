@@ -14,6 +14,11 @@ statsig.anthropic.com
 statsig.com
 sentry.io
 
+# OpenAI / Codex (API and browser/device authentication)
+api.openai.com
+auth.openai.com
+chatgpt.com
+
 # GitHub (git-over-https + API; devcontainer-firewall.sh also adds the
 # published git/api/web ranges from api.github.com/meta)
 github.com

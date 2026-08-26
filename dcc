@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Host-side wrapper for a restricted Claude Code dev container, rootless
+# Host-side wrapper for a restricted coding-agent dev container, rootless
 # podman edition (keep-id userns — see template/devcontainer.json).
 #   dcc init <name>     adopt: copy the template to ./.devcontainer and
 #                      substitute <name> into it (run in the workspace root)
@@ -57,10 +57,11 @@ if [ "${1:-}" = init ]; then
         echo "sidecar subnet 172.30.$n.0/24"
         break
     done
-    # the claude state dir holds the container's auth token — never commit it
-    if [ -d .git ] && ! grep -qxF '.claude-devcontainer/' .gitignore 2>/dev/null; then
-        echo '.claude-devcontainer/' >> .gitignore
-        echo "added .claude-devcontainer/ to .gitignore"
+    # agent state contains auth tokens — never commit it
+    if [ -d .git ]; then
+        for state in .claude-devcontainer/ .codex-devcontainer/; do
+            grep -qxF "$state" .gitignore 2>/dev/null || { echo "$state" >>.gitignore; echo "added $state to .gitignore"; }
+        done
     fi
     # the template version, for .devcontainer/update (3-way merge base)
     git -C "$TEMPLATE" rev-parse HEAD >.devcontainer/template.rev 2>/dev/null || rm -f .devcontainer/template.rev
@@ -120,6 +121,7 @@ up() {
     # there (e.g. the host memory dir) makes podman create the missing
     # parents as container root = host subuid, and the agent can't write them
     mkdir -p "$ROOT/.claude-devcontainer/projects/-$(printf %s "$ROOT" | sed 's|^/||; s|/|-|g')" \
+        "$ROOT/.codex-devcontainer" \
         "$ROOT/.devcontainer/empty.d" "$HOME/.config/$NAME-devcontainer"
     ensure_db
     npx --yes @devcontainers/cli up --docker-path "$ENGINE" \

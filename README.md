@@ -1,6 +1,6 @@
 # agent-devcontainer
 
-This is a restricted dev container for agents such as Claude Code that
+This is a restricted dev container for Claude Code and OpenAI Codex that
 write code. The agent operates in the container. You keep your IDE on
 the host. The agent and the IDE use the same files.
 
@@ -34,9 +34,9 @@ many repositories.
   `dcc allow` on the host.
 - The token mount and the secret masks are read-only. The container cannot
   remount these mounts (no `CAP_SYS_ADMIN`).
-- Root-owned managed settings, which Claude Code reads above all other
-  settings levels, connect the harness hooks. The agent cannot add,
-  remove or bypass the hooks. Only the host writes approvals.
+- Root-owned Claude managed settings and Codex requirements connect the
+  harness hooks. The agent cannot add, remove or bypass the hooks. Only
+  the host writes approvals.
 - Use the server side (branch protection, deploy environments) to prevent
   unwanted operations. The container cannot decrease the permissions of
   the token.
@@ -74,9 +74,9 @@ dcc init myproject
 ```
 
 The command copies the template into `.devcontainer/` and sets the name.
-In a git repository, the command also adds `.claude-devcontainer/` to
-`.gitignore`. That directory holds the login state of the agent. Do not
-commit that directory.
+In a git repository, the command also adds `.claude-devcontainer/` and
+`.codex-devcontainer/` to `.gitignore`. These directories hold agent login
+state. Do not commit them.
 
 Step 2: Edit the copied files. The files are part of your project:
 
@@ -148,11 +148,17 @@ container makes unsigned commits.
 ```bash
 dcc           # builds the image, starts the container, opens a shell
 claude        # log in once: open the URL in your HOST browser
+codex login --device-auth  # Codex: open the URL in your HOST browser
 ```
 
-The container keeps the state of the agent in `<project>/.claude-devcontainer`
-on the host. The container does not mount the host directory `~/.claude`,
-because host transcripts can contain secrets.
+The container keeps agent state in `<project>/.claude-devcontainer` and
+`<project>/.codex-devcontainer` on the host. It does not mount the host
+directories `~/.claude` or `~/.codex`, because transcripts can contain
+secrets. Codex can alternatively use an API key:
+
+```bash
+printenv OPENAI_API_KEY | codex login --with-api-key
+```
 
 Optional: copy your project memory into the container state. Run these
 commands on the host, in the project directory:
@@ -172,7 +178,7 @@ Do not copy transcripts. They can contain secrets.
 | Command              | Function                                                              |
 |----------------------|-----------------------------------------------------------------------|
 | `dcc`                | Start the container if necessary. Open a shell in the container.      |
-| `dcc attach <cmd>`   | Run `<cmd>` in the container, not a shell. Example: `dcc attach claude`. |
+| `dcc attach <cmd>`   | Run `<cmd>` in the container, not a shell. Example: `dcc attach codex`. |
 | `dcc up <cmd>`       | Start the container and the database, then run `<cmd>`. Use this in scripts. |
 | `dcc down`           | Stop the container and the database. All data stays.                  |
 | `dcc rebuild`        | Build a new image and container. The database does not change.        |
@@ -195,7 +201,8 @@ Notes:
 - In the container, git pushes with HTTPS and the token. `GH_TOKEN`
   is available only in interactive shells. For scripts, use
   `dcc up bash -ic '…'`, not `bash -c`.
-- To continue a stopped agent session, run `dcc attach claude -c`.
+- To continue a stopped session, use the agent's resume command.
+- For scripts, `dcc attach codex exec --json "task"` emits Codex JSONL.
 
 ## Updates
 
@@ -205,6 +212,7 @@ The template changes. To get the changes into a project, run
 the template from GitHub.
 
 - Engine files are replaced: `harness/`, `managed-settings.json`,
+  `codex-requirements.toml`,
   `entry.sh`, the firewall and setup scripts, and `update` itself.
 - Configuration files get a three-way merge: `devcontainer.json`,
   `Dockerfile`, `dcc.conf`, `allowlist.txt`. The base is the template
@@ -333,10 +341,10 @@ the push, because the token has no Workflows permission.
 
 ## The safety harness
 
-The image also has a harness: hooks that Claude Code runs before and
-after each tool call, a `harness` CLI, checkers, and a rule registry. The
-agent gives a tool call; the harness accepts or denies the tool call. The
-harness is root-owned, and managed settings connect the hooks. A change
+The image also has a harness: hooks that Claude Code and Codex run before
+and after each tool call, a `harness` CLI, checkers, and a rule registry.
+The agent gives a tool call; the harness accepts or denies the tool call.
+The harness is root-owned, and managed policy connects the hooks. A change
 is a rebuild.
 
 The harness gives you:
@@ -359,6 +367,11 @@ example: [docs/rules-extracarts.md](docs/rules-extracarts.md). The
 engine: [template/harness/README.md](template/harness/README.md).
 
 ## Sources
+
+- [OpenAI Codex CLI](https://learn.chatgpt.com/docs/codex/cli),
+  [authentication](https://learn.chatgpt.com/docs/auth), and
+  [hooks](https://learn.chatgpt.com/docs/hooks) — installation, isolated
+  login state and the managed hook protocol used by this template.
 
 - [anthropics/claude-code](https://github.com/anthropics/claude-code) —
   the Claude Code devcontainer of Anthropic. The allowlist-only egress

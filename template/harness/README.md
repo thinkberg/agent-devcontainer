@@ -1,8 +1,9 @@
 # harness/ — the engine and the generic rules
 
 Installed into the image at `/usr/local/lib/harness` by the Dockerfile,
-root-owned; `harness` is on the PATH. Wired by `managed-settings.json`
-(`/etc/claude-code/`), which the agent cannot change either.
+root-owned; `harness` is on the PATH. Wired by `managed-settings.json` for
+Claude Code and `codex-requirements.toml` for Codex, which the agent cannot
+change either.
 
 The deterministic harness: hooks, a CLI, checkers, and the generic rule
 registry with the default working process. Nothing project-specific

@@ -1,0 +1,67 @@
+# Root-owned Codex policy. The container is the sandbox; the harness is the
+# per-tool policy layer. User, project and plugin hooks cannot replace it.
+allow_managed_hooks_only = true
+allowed_approval_policies = ["never"]
+allowed_sandbox_modes = ["danger-full-access"]
+check_for_update_on_startup = false
+
+[features]
+hooks = true
+apps = false
+plugins = false
+computer_use = false
+
+# An explicit empty allowlist disables user-configured MCP servers.
+[mcp_servers]
+
+[hooks]
+managed_dir = "/usr/local/lib/harness"
+
+[[hooks.PreToolUse]]
+matcher = "^Bash$"
+
+[[hooks.PreToolUse.hooks]]
+type = "command"
+command = "/usr/local/lib/harness/harness.py hook pre-bash"
+timeout = 10
+
+[[hooks.PreToolUse.hooks]]
+type = "command"
+command = "/usr/local/lib/harness/harness.py hook pre-write"
+timeout = 10
+
+[[hooks.PreToolUse]]
+matcher = "^apply_patch$"
+
+[[hooks.PreToolUse.hooks]]
+type = "command"
+command = "/usr/local/lib/harness/harness.py hook pre-write"
+timeout = 10
+
+[[hooks.PostToolUse]]
+matcher = "^Bash$"
+
+[[hooks.PostToolUse.hooks]]
+type = "command"
+command = "/usr/local/lib/harness/harness.py hook ticket-state post"
+timeout = 10
+
+[[hooks.PostToolUse]]
+matcher = "^apply_patch$"
+
+[[hooks.PostToolUse.hooks]]
+type = "command"
+command = "/usr/local/lib/harness/harness.py hook post-write"
+timeout = 90
+
+[[hooks.Stop]]
+
+[[hooks.Stop.hooks]]
+type = "command"
+command = "/usr/local/lib/harness/harness.py hook ticket-state stop"
+timeout = 10
+
+[[hooks.Stop.hooks]]
+type = "command"
+command = "/usr/local/lib/harness/harness.py hook stop-checks"
+timeout = 90
