@@ -208,11 +208,10 @@ the template from GitHub.
   `entry.sh`, the firewall and setup scripts, and `update` itself.
 - Configuration files get a three-way merge: `devcontainer.json`,
   `Dockerfile`, `dcc.conf`, `allowlist.txt`. The base is the template
-  version in `.devcontainer/template.rev` (written by `dcc init` and by
-  each update). A clean merge is applied. A conflict does not change
+  version in `.devcontainer/template.rev`, the commit the project is at
+  (written by `dcc init` and by each update). A clean merge is applied. A conflict does not change
   your file: the script writes `<file>.conflict` with conflict markers.
-  Resolve it, move the result over your file, delete the `.conflict`
-  file, and run `dcc update` again.
+  Resolve it and move the result over your file.
 - `rules/`, `empty.d/`, `db-init.d/` and files that are not in the
   template stay as they are.
 
