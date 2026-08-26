@@ -12,6 +12,7 @@
 # was last updated from (template.rev), the new template, your file.
 # A clean merge is applied; a conflict leaves your file untouched and
 # writes <file>.conflict with the usual markers for you to resolve.
+# template.rev records the template commit the project is at.
 # rules/, empty.d/, db-init.d/ and files the template does not have are
 # yours and never touched.
 #
@@ -92,11 +93,12 @@ for f in $MERGE; do
     fi
 done
 
-# the base of the next update: recorded when nothing is pending — or,
-# without a base, now: your files count as derived from this version
-if [ -z "$since" ] || [ -z "$conflicts" ]; then echo "$sha" >"$DC/template.rev"; fi
+# the template commit this project is now at — the base of the next update.
+# A .conflict file holds the complete merge; resolving it brings that file
+# to this version too, so the record is right with conflicts pending.
+echo "$sha" >"$DC/template.rev"
 if [ -n "$conflicts" ]; then
-    echo "template ${sha:0:7}: resolve the .conflict files, delete them, then run update again; then dcc rebuild"
+    echo "template ${sha:0:7} applied, with conflicts: resolve each .conflict file, move it over the file it names, then dcc rebuild"
 else
     echo "template ${sha:0:7} applied — now: dcc rebuild"
 fi
