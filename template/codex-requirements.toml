@@ -2,7 +2,7 @@
 # per-tool policy layer. User, project and plugin hooks cannot replace it.
 allow_managed_hooks_only = true
 allowed_approval_policies = ["never"]
-allowed_sandbox_modes = ["read-only", "danger-full-access"]
+allowed_sandbox_modes = ["danger-full-access"]
 check_for_update_on_startup = false
 
 [features]
