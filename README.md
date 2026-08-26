@@ -154,7 +154,22 @@ codex login --device-auth  # Codex: open the URL in your HOST browser
 The container keeps agent state in `<project>/.claude-devcontainer` and
 `<project>/.codex-devcontainer` on the host. It does not mount the host
 directories `~/.claude` or `~/.codex`, because transcripts can contain
-secrets. Codex can alternatively use an API key:
+secrets. If you set Codex's sandbox mode there, put it before every TOML
+table header:
+
+```toml
+sandbox_mode = "danger-full-access"
+
+[projects."/absolute/path/to/project"]
+trust_level = "trusted"
+```
+
+Putting `sandbox_mode` after `[projects."…"]` nests it in that project table,
+so Codex ignores it, defaults to `workspace-write`, and warns that the mode is
+disallowed by `/etc/codex/requirements.toml`. Do not remove `read-only` from
+`allowed_sandbox_modes` to silence the warning; Codex needs it during login.
+
+Codex can alternatively use an API key:
 
 ```bash
 printenv OPENAI_API_KEY | codex login --with-api-key
