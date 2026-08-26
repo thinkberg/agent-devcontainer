@@ -137,7 +137,9 @@ exec_in() {   # run a command (default: interactive shell) inside as vscode
 case "$1" in
     up)      shift; up; [ $# -eq 0 ] || exec_in "$@" ;;
     rebuild) up --remove-existing-container ;;
-    update)  shift; exec "$ROOT/.devcontainer/update" "$@" ;;
+    update)  shift   # bootstrap: a project from before the script existed gets it from the template
+             [ -x "$ROOT/.devcontainer/update" ] || cp -p "$TEMPLATE/update" "$ROOT/.devcontainer/update"
+             exec "$ROOT/.devcontainer/update" "$@" ;;
     down)
         stopped=
         for c in "$CTR" "$DB"; do
