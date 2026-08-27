@@ -97,7 +97,7 @@ expect allow "$PB" "$(bj "gh pr merge 8 --squash" "$B")" "a PR to main needs no 
 expect deny:release-ships-tip "$PB" "$(bj "gh pr merge" "$B")" "merge without a PR number denied"
 
 echo "== scope-to-project (approval carries the write scope)"
-PL=planning/plans/2026-08-24-s.md; echo "# s" >"$P/plans/2026-08-24-s.md" 2>/dev/null || { mkdir -p "$P/plans"; echo "# s" >"$P/plans/2026-08-24-s.md"; }
+PL=planning/plans/2026-08-24-s.md; mkdir -p "$P/plans"; echo "# s" >"$P/plans/2026-08-24-s.md"
 gq "$P" add plans; gq "$P" commit -q -m plan
 "$H" phase plan --ticket backend#142 >/dev/null && "$H" phase review --plan "$PL" --ponytail-reviewed >/dev/null
 expect_rc 0 "approve with a scope" "$H" approve "$PL" --scope 'backend/*'
