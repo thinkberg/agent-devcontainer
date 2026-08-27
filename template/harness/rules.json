@@ -65,7 +65,7 @@
       "text": "Never --no-verify, --no-gpg-sign, or a hooksPath/gpgsign override.",
       "check": { "regex": [
         "--no-verify|--no-gpg-sign|core\\.hooksPath|commit\\.gpgsign=false|gpg\\.program=",
-        "\\bgit(\\s+-[cC]\\s+\\S+)*\\s+commit\\s+(\\S+\\s+)*-n(\\s|$)" ] }
+        "\\bgit(\\s+-[cC]\\s+\\S+)*\\s+commit\\s+([^\"'\\s]+\\s+)*-n(\\s|$)" ] }
     },
     {
       "id": "no-production-push", "class": "enforce", "step": "release", "trigger": "pre_bash",
@@ -148,6 +148,22 @@
     { "id": "check-library-docs", "class": "advise", "step": "implement", "source": "operator's rule", "text": "Verify library behavior against the official docs for the pinned version before relying on it." },
     { "id": "no-over-engineering", "class": "advise", "step": "implement", "source": "operator's rule", "text": "Do not over-implement or over-engineer. Use what exists or ask." },
     { "id": "focused-tests-first", "class": "advise", "step": "verify", "source": "operator's rule", "text": "Focused tests for the change, then broader ones across boundaries." },
-    { "id": "plan-format-ste", "class": "advise", "step": "plan", "source": "operator's rule", "text": "Plans use Simplified Technical English and carry exact paths, identifiers and commands so an agent can execute them without extra lookup." }
+    { "id": "plan-format-ste", "class": "advise", "step": "plan", "source": "operator's rule", "text": "Plans use Simplified Technical English and carry exact paths, identifiers and commands so an agent can execute them without extra lookup." },
+    {
+      "id": "tickets-via-bin",
+      "class": "enforce",
+      "step": "intake",
+      "trigger": "pre_bash",
+      "source": "operator's ticket workflow: create and change tickets only through the project's scripts; raw gh for comments, milestones, body edits and transfers",
+      "text": "Ticket create/close/status changes go through the project's ticket scripts. Raw gh is for comments, milestones, body edits and transfers only.",
+      "check": {
+        "regex": [
+          "\\bgh\\s+issue\\s+(create|close|reopen|delete)\\b",
+          "\\bgh\\s+project\\s+(item-add|item-edit|item-delete|item-archive|item-create|field-create|field-delete)\\b",
+          "\\bgh\\s+api\\s+(\\S+\\s+)*\\S*/issues(/[0-9]+)?(\\s|$)[^|;&]*(-X|--method|-f|-F|--field|--raw-field|--input)\\b",
+          "\\bgh\\s+api\\s+(\\S+\\s+)*(-X|--method)\\s+(POST|PATCH|PUT|DELETE)\\s+(\\S+\\s+)*\\S*/issues(/[0-9]+)?(\\s|$)"
+        ]
+      }
+    }
   ]
 }
