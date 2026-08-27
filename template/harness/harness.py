@@ -107,6 +107,9 @@ def load_rules():
                       "project": p.get("project") or {}, "rules": rules}
         else:
             merged = g
+        ids = [r["id"] for r in merged["rules"]]
+        if len(ids) != len(set(ids)):
+            raise ValueError("duplicate rule id")   # a copy added instead of an edit
         _compile_all(merged)
         return merged
     except (OSError, ValueError, KeyError, TypeError, AttributeError, re.error):
