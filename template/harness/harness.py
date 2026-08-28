@@ -10,7 +10,6 @@
 #   harness.py status | steps | rules [--step NAME] [--json]
 #   harness.py phase NAME [--ticket X] [--plan P] [--ponytail-reviewed]
 #   harness.py approve PLAN [--scope GLOB…]        operator only (dcc approve)
-#   harness.py approve-release REPO PR             operator only
 #   harness.py check [--base REF]                  the gate's dry run
 #
 # Contract of a hook: JSON on stdin, JSON decision on stdout, exit 0. No
@@ -924,29 +923,6 @@ def cli_approve(argv):
     print("approved %s at blob %s, scope: %s" % (plan, blob, " ".join(scope) or "*"))
 
 
-def cli_approve_release(argv):
-    if len(argv) < 2:
-        die("usage: harness approve-release <repo-dir> <pr>")
-    import subprocess
-    repo, pr = argv[0], argv[1]
-    try:
-        r = subprocess.run(["gh", "pr", "view", pr, "--json", "headRefOid,baseRefName"], cwd=repo,
-                           capture_output=True, text=True)
-        head = json.loads(r.stdout) if r.returncode == 0 else None
-    except (OSError, ValueError):
-        head = None
-    if not head:
-        die("cannot read PR %s in %s" % (pr, repo))
-    if head.get("baseRefName") != "production":
-        die("PR %s does not target production" % pr)
-    os.makedirs(APPROV, exist_ok=True)
-    sha = head.get("headRefOid") or ""
-    with open(os.path.join(APPROV, "release-%s-%s.approved" % (os.path.basename(os.path.realpath(repo)), pr)),
-              "w", encoding="utf-8") as fh:
-        fh.write(sha)
-    print("approved release PR %s at %s" % (pr, sha[:7]))
-
-
 def cli_steps():
     phases = RULES["phases"]
     cur, declared = effective_phase(), state("phase")
@@ -1051,7 +1027,7 @@ def cli_check(argv):
 
 
 USAGE = ("usage: harness status | steps | rules [--step <name>] | phase <name> [opts] | approve <plan> [--scope g…] | "
-         "approve-release <repo> <pr> | check [--base REF] | hook <name>")
+         "check [--base REF] | hook <name>")
 
 
 def main(argv):
@@ -1073,13 +1049,13 @@ def main(argv):
             die("usage: harness hook pre-bash|pre-write|post-write|stop-checks|ticket-state post|stop")
         return 0
     verb = argv[0] if argv else ""
-    if verb not in ("status", "steps", "rules", "phase", "approve", "approve-release", "check"):
+    if verb not in ("status", "steps", "rules", "phase", "approve", "check"):
         die(USAGE)
     set_root(os.environ.get("CLAUDE_PROJECT_DIR") or find_root())
     if RULES is None:
         die("rule registry unreadable or project overlay corrupt (generic: %s, project: %s)" % (GENERIC_RULES, PROJECT_RULES))
     {"status": lambda a: cli_status(), "steps": lambda a: cli_steps(), "rules": cli_rules, "phase": cli_phase,
-     "approve": cli_approve, "approve-release": cli_approve_release, "check": cli_check}[verb](argv[1:])
+     "approve": cli_approve, "check": cli_check}[verb](argv[1:])
     return 0
 
 

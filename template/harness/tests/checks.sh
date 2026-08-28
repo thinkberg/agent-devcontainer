@@ -88,7 +88,7 @@ echo "== release-ships-tip (approval token bound to the PR head)"
 export FAKE_PRVIEW=$(mktemp); echo '{"baseRefName":"production","headRefOid":"aaaa1111aaaa1111aaaa1111aaaa1111aaaa1111"}' >"$FAKE_PRVIEW"
 cp "$HERE/fake-gh" "$FB/gh"
 expect deny:release-ships-tip "$PB" "$(bj "gh pr merge 7 --merge" "$B")" "merge to production without approval denied"
-expect_rc 0 "operator approves the release" "$H" approve-release "$B" 7
+mkdir -p "$HARNESS_APPROVAL_DIR"; printf %s aaaa1111aaaa1111aaaa1111aaaa1111aaaa1111 >"$HARNESS_APPROVAL_DIR/release-backend-7.approved"   # what dcc approve-release stores
 expect allow "$PB" "$(bj "gh pr merge 7 --merge" "$B")" "merge with matching approval allowed"
 echo '{"baseRefName":"production","headRefOid":"bbbb2222bbbb2222bbbb2222bbbb2222bbbb2222"}' >"$FAKE_PRVIEW"
 expect deny:release-ships-tip "$PB" "$(bj "gh pr merge 7 --merge" "$B")" "main moved after approval — stale, denied"

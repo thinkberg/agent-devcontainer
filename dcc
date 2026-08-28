@@ -164,10 +164,16 @@ case "$1" in
         shift; $ENGINE exec -u root -w "$ROOT" -e CLAUDE_PROJECT_DIR="$ROOT" \
             -e GIT_CONFIG_COUNT=1 -e GIT_CONFIG_KEY_0=safe.directory -e GIT_CONFIG_VALUE_0='*' \
             "$CTR" /usr/local/lib/harness/harness.py approve "$@" ;;
+    # the release token is the PR head SHA as the operator's gh on the host
+    # sees it; the container gets no GitHub access for this, root just stores
+    # the file (same name the release-approved checker looks up)
     approve-release)
-        shift; $ENGINE exec -u root -w "$ROOT" -e CLAUDE_PROJECT_DIR="$ROOT" \
-            -e GH_TOKEN="$(cat "$HOME/.config/$NAME-devcontainer/gh-token")" \
-            "$CTR" /usr/local/lib/harness/harness.py approve-release "$@" ;;
+        repo=${2:?usage: dcc approve-release <repo-dir> <pr>}; pr=${3:?usage: dcc approve-release <repo-dir> <pr>}
+        read -r base sha <<<"$(cd "$repo" && gh pr view "$pr" --json baseRefName,headRefOid --jq '.baseRefName+" "+.headRefOid')"
+        [ "$base" = production ] || { echo "ERROR: PR $pr does not target production (base: ${base:-?})" >&2; exit 1; }
+        name=$(basename "$(cd "$repo" && pwd -P)")
+        $ENGINE exec -u root "$CTR" sh -c 'printf %s "$1" >"/run/harness/approvals/release-$2-$3.approved"' sh "$sha" "$name" "$pr"
+        echo "approved release PR $pr ($name) at ${sha:0:7}" ;;
     # GH_TOKEN reaches interactive shells only (bashrc); a podman exec is not
     # one, and the board checkers need gh — hand the token over explicitly
     check)   shift; $ENGINE exec -u vscode -w "$ROOT" -e CLAUDE_PROJECT_DIR="$ROOT" \
