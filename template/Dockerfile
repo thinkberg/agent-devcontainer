@@ -24,8 +24,9 @@ RUN curl -fsSL https://chatgpt.com/codex/install.sh \
 #         | tar -xz -C /usr/local/bin hugo
 # headless chrome (Google's deb; Ubuntu's apt "chromium" is a snap stub and
 # node/playwright arrive after this Dockerfile). amd64 only. Launch with
-# --no-sandbox if "No usable sandbox" (the container is the sandbox); see
-# --shm-size and the *_SKIP_* env in devcontainer.json:
+# --no-sandbox: Chrome's own sandbox dies at sys_chroot (podman's seccomp
+# gates chroot on CAP_SYS_CHROOT, dropped by --cap-drop=ALL); the container
+# is the sandbox. See --shm-size and the *_SKIP_* env in devcontainer.json:
 # RUN curl -fsSL -o /tmp/chrome.deb https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb \
 #     && apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends /tmp/chrome.deb \
 #     && rm -rf /tmp/chrome.deb /var/lib/apt/lists/* /etc/apt/sources.list.d/google-chrome* /etc/cron.daily/google-chrome
