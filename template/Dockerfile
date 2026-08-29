@@ -26,9 +26,11 @@ RUN curl -fsSL https://chatgpt.com/codex/install.sh \
 # node/playwright arrive after this Dockerfile). amd64 only. Launch with
 # --no-sandbox: Chrome's own sandbox dies at sys_chroot (podman's seccomp
 # gates chroot on CAP_SYS_CHROOT, dropped by --cap-drop=ALL); the container
-# is the sandbox. See --shm-size and the *_SKIP_* env in devcontainer.json:
+# is the sandbox. See --shm-size and the *_SKIP_* env in devcontainer.json.
+# fonts-noto-cjk: CJK text renders as boxes without it; add fonts-noto-color-emoji
+# or fonts-noto-core for emoji / other scripts the same way:
 # RUN curl -fsSL -o /tmp/chrome.deb https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb \
-#     && apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends /tmp/chrome.deb \
+#     && apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends /tmp/chrome.deb fonts-noto-cjk \
 #     && rm -rf /tmp/chrome.deb /var/lib/apt/lists/* /etc/apt/sources.list.d/google-chrome* /etc/cron.daily/google-chrome
 # ----------------------------------------------------------------------------
 
