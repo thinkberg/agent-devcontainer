@@ -300,6 +300,37 @@ loopback only.
 For an engine other than PostgreSQL, adapt `ensure_db` in your copy of
 `dcc`.
 
+## Use headless Chrome
+
+Off by default. This procedure installs Google Chrome for browser tests
+(Playwright, Puppeteer) or screenshots.
+
+1. Edit `.devcontainer/Dockerfile`. Uncomment the `google-chrome` block in
+   the project tools section.
+2. Edit `.devcontainer/devcontainer.json`. Uncomment `--shm-size=1g` in
+   `runArgs` and the three `PUPPETEER_*` / `PLAYWRIGHT_*` lines in
+   `containerEnv`.
+3. Run `dcc rebuild`.
+4. Start Chrome with `--no-sandbox`. Example for Playwright:
+   `chromium.launch({ channel: 'chrome', args: ['--no-sandbox'] })`.
+
+Facts:
+
+- Chrome's own sandbox does not operate in the container: it stops at
+  `sys_chroot`, because podman's seccomp profile permits `chroot` only with
+  `CAP_SYS_CHROOT`, and `--cap-drop=ALL` removes that capability. Without
+  `--no-sandbox`, Chrome stops with a core dump. The container is the
+  sandbox; the firewall and the capability limits apply to Chrome too.
+- The `*_SKIP_*` variables stop `npm install` from downloading a browser.
+  The firewall blocks that download. Use the system Chrome.
+- Chrome's own connections (updates, safe browsing) are blocked by the
+  firewall. This causes no problem. Add the sites that the agent must open
+  to `allowlist.txt`.
+- The harness knows this rule. A file edit that launches Chrome without
+  `--no-sandbox` gets a note after the edit (`chrome-no-sandbox`, feedback
+  only). A shell command `google-chrome …` without the flag is denied
+  (`chrome-no-sandbox-shell`).
+
 ## Control egress
 
 - Permanent: add the domain to `.devcontainer/allowlist.txt`. Then run
@@ -374,7 +405,7 @@ The harness gives you:
 - a working process as a state machine: brainstorm → plan → review →
   implement. Your approval on the host is the step into code
   (`dcc approve`, `dcc approve-release`);
-- 22 generic rules on git, the publish step, secrets, tickets and protected
+- 24 generic rules on git, the publish step, secrets, tickets, headless chrome and protected
   paths, each classed as enforce, verify, approve or advise;
 - checkers that run after an edit, at the session end and with
   `dcc check`;
