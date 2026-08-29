@@ -25,6 +25,8 @@
     // host access to a server inside (loopback only); list the port in
     // DEVCONTAINER_INPUT_PORTS below too, or the firewall drops it:
     //"--publish=127.0.0.1:8000:8000",
+    // headless chrome: podman's 64 MB /dev/shm crashes renderer tabs
+    //"--shm-size=1g",
     // hardened: drop everything, add back only what pid-1 root (entry.sh:
     // firewall, chown) needs. NET_ADMIN/NET_RAW: iptables/ipset — root-only,
     // vscode has no caps, which is what makes the firewall tamper-proof.
@@ -91,6 +93,12 @@
     // inbound TCP ports the firewall accepts (space-separated) — one per
     // --publish above, e.g. "8000"
     "DEVCONTAINER_INPUT_PORTS": ""
+    // headless chrome (Dockerfile): npm packages must not fetch their own
+    // browser (the firewall blocks it) — use the system one. Playwright:
+    // chromium.launch({ channel: 'chrome' })
+    //,"PUPPETEER_SKIP_DOWNLOAD": "1"
+    //,"PUPPETEER_EXECUTABLE_PATH": "/usr/bin/google-chrome"
+    //,"PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD": "1"
     // with a database sidecar, e.g.:
     //,"TEST_DATABASE_URL": "postgresql://test:test@postgres:5432/test"
   },

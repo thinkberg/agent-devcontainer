@@ -22,6 +22,13 @@ RUN curl -fsSL https://chatgpt.com/codex/install.sh \
 # ARG HUGO_VERSION=0.163.2
 # RUN curl -fsSL "https://github.com/gohugoio/hugo/releases/download/v${HUGO_VERSION}/hugo_extended_${HUGO_VERSION}_linux-amd64.tar.gz" \
 #         | tar -xz -C /usr/local/bin hugo
+# headless chrome (Google's deb; Ubuntu's apt "chromium" is a snap stub and
+# node/playwright arrive after this Dockerfile). amd64 only. Launch with
+# --no-sandbox if "No usable sandbox" (the container is the sandbox); see
+# --shm-size and the *_SKIP_* env in devcontainer.json:
+# RUN curl -fsSL -o /tmp/chrome.deb https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb \
+#     && apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends /tmp/chrome.deb \
+#     && rm -rf /tmp/chrome.deb /var/lib/apt/lists/* /etc/apt/sources.list.d/google-chrome* /etc/cron.daily/google-chrome
 # ----------------------------------------------------------------------------
 
 # ---- safety harness -------------------------------------------------------
