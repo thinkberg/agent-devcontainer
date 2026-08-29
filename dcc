@@ -50,7 +50,8 @@ if [ "${1:-}" = init ]; then
     # 172.30.N.0/24 no podman network uses (dcc.conf SUBNET and the
     # DEVCONTAINER_SUBNET the firewall reads must agree, so both files)
     # ponytail: podman networks only; a host route on the range still collides
-    used=$($ENGINE network inspect $($ENGINE network ls -q) -f '{{range .Subnets}}{{.Subnet}} {{end}}' 2>/dev/null || true)
+    # tr: inspect prints one line per network — newlines would break the case match
+    used=$($ENGINE network inspect $($ENGINE network ls -q) -f '{{range .Subnets}}{{.Subnet}} {{end}}' 2>/dev/null | tr '\n' ' ' || true)
     for n in {0..255}; do
         case " $used " in *" 172.30.$n.0/24 "*) continue ;; esac
         perl -pi -e "s|172\.30\.0\.0/24|172.30.$n.0/24|g" .devcontainer/dcc.conf .devcontainer/devcontainer.json
