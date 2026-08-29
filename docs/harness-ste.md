@@ -63,7 +63,7 @@ directories for these paths.
 
 | File | Function |
 |------|----------|
-| `rules.json` | The generic registry: 22 rules and the default work procedure (`phases`). The rules are about git, the publish step, secrets, the phases, the protected paths and the tickets. |
+| `rules.json` | The generic registry: 24 rules and the default work procedure (`phases`). The rules are about git, the publish step, secrets, the phases, the protected paths and the tickets. |
 | `harness.py` | The engine. One Python program, standard library only. It contains the hooks and the CLI. |
 | `harness.py hook pre-bash` | Runs before each `Bash` call. Applies the regex rules, the `-C /abs` builtin rule and the checker rules (`when` + `run`). The first rule that matches denies the call. |
 | `harness.py hook pre-write` | Runs before each `Edit`, `Write` or `Bash` call that writes a file. Applies the protected paths first. Then applies the phase gate and the approved scope. |

@@ -43,6 +43,20 @@ expect_rc 1 "untracked file with a bare tick fails" "$CK/review-tick-has-date" "
 out=$("$POST" <<<"$(wj "$P/reviews/2026-08-25-new.md")" 2>&1); [ $? -eq 2 ] && grep -q 'review-tick-has-date' <<<"$out" && pass=$((pass+1)) || { fail=$((fail+1)); echo "FAIL [post-write: review tick reported]"; }
 rm "$P/reviews/2026-08-25-new.md"; gq "$P" checkout -q -- reviews
 
+echo "== chrome-no-sandbox"
+E=$A/e2e.spec.ts
+printf "const b = await chromium.launch({ channel: 'chrome' });\n" >"$E"
+expect_rc 1 "launch without the flag fails" "$CK/chrome-no-sandbox" "$E"
+printf "const args = ['--no-sandbox'];\nconst b = await chromium.launch({ channel: 'chrome', args });\n" >"$E"
+expect_rc 0 "flag anywhere in the file passes" "$CK/chrome-no-sandbox" "$E"
+printf "export const x = 1;\n" >"$E"
+expect_rc 0 "no launch = nothing to say" "$CK/chrome-no-sandbox" "$E"
+printf "browser = p.chromium.launch(channel='chrome')\n" >"$A/shot.py"
+expect_rc 1 "python launch without the flag fails" "$CK/chrome-no-sandbox" "$A/shot.py"
+printf "const b = await puppeteer.launch();\n" >"$E"
+out=$("$POST" <<<"$(wj "$E")" 2>&1); rc=$?; [ $rc -eq 2 ] && grep -q 'chrome-no-sandbox' <<<"$out" && pass=$((pass+1)) || { fail=$((fail+1)); echo "FAIL [post-write: chrome launch without --no-sandbox reported] rc=$rc"; }
+rm -f "$E" "$A/shot.py"
+
 echo "== hugo-warning-clean"
 FB=$(mktemp -d -p "$HOME/.cache"); export PATH=$FB:$PATH
 expect_rc 3 "no hugo = error (fail closed in the dispatcher)" env PATH=/usr/bin:/bin "$CK/hugo-warning-clean" "$W/www"

@@ -116,6 +116,12 @@ expect deny:db-no-improvise "$PB" "$(bash_json "initdb -D /tmp/pg && pg_ctl -D /
 expect deny:db-no-improvise "$PB" "$(bash_json ".venv/bin/pip install pgserver")" "pgserver"
 expect allow "$PB" "$(bash_json "pg_isready -h postgres")" "positive: probing the sidecar is fine"
 
+echo "== chrome-no-sandbox-shell"
+expect deny:chrome-no-sandbox-shell "$PB" "$(bash_json "google-chrome --headless=new --dump-dom http://localhost:8000")" "launch without the flag"
+expect allow "$PB" "$(bash_json "google-chrome --headless=new --no-sandbox --dump-dom http://localhost:8000")" "positive: with --no-sandbox"
+expect allow "$PB" "$(bash_json "google-chrome --version")" "positive: --version starts no zygote"
+expect deny:chrome-no-sandbox-shell "$PB" "$(bash_json "google-chrome --version; google-chrome --headless=new --screenshot x.html")" "second command lacks the flag"
+
 echo "== protected-paths (in isolation: registry without the phase gate)"
 NOPHASE=$(mktemp); jq 'del(.rules[] | select(.id=="phase-gate"))' "$HARNESS_RULES" >"$NOPHASE"; SAVED_RULES=$HARNESS_RULES; export HARNESS_RULES=$NOPHASE
 expect deny:protected-paths "$PW" "$(edit_json "$WS/www/static/legal/avv-de-v1.2.pdf")" "legal pdf"

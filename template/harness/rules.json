@@ -143,6 +143,18 @@
       "text": "Before merging a Release PR, list what main gained since it was opened and ask for the operator's approval; the token is bound to the PR head SHA.",
       "check": { "when": "\\bgh\\s+pr\\s+merge\\b", "run": "{checkers}/release-approved" }
     },
+    {
+      "id": "chrome-no-sandbox", "class": "verify", "step": "implement", "trigger": "post_write",
+      "source": "operator's rule; the headless chrome opt-in (Dockerfile): its sandbox dies at sys_chroot under --cap-drop=ALL",
+      "text": "Chrome in the container needs --no-sandbox; the container is the sandbox.",
+      "check": { "paths": ["*.js", "*.mjs", "*.cjs", "*.ts", "*.py", "*.sh"], "run": "{checkers}/chrome-no-sandbox {root}/{file}" }
+    },
+    {
+      "id": "chrome-no-sandbox-shell", "class": "enforce", "step": "implement", "trigger": "pre_bash",
+      "source": "operator's rule; the headless chrome opt-in (Dockerfile): its sandbox dies at sys_chroot under --cap-drop=ALL",
+      "text": "google-chrome in a shell needs --no-sandbox (it core-dumps without); the container is the sandbox.",
+      "check": { "regex": "\\bgoogle-chrome(-stable)?\\b(?![^|;&]*--(no-sandbox|version|help)\\b)" }
+    },
     { "id": "ponytail-review-plan", "class": "approve", "step": "plan", "source": "operator's rule", "text": "ponytail-review runs over the plan before implementation; trims are folded in. Declared with --ponytail-reviewed; no mechanical proof.", "status": "declaration recorded in the run state" },
     { "id": "ask-dont-assume", "class": "advise", "step": "implement", "source": "operator's rule", "text": "If you implement code, do not assume things, ask." },
     { "id": "check-library-docs", "class": "advise", "step": "implement", "source": "operator's rule", "text": "Verify library behavior against the official docs for the pinned version before relying on it." },

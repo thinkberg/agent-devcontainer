@@ -1,0 +1,16 @@
+#!/bin/bash
+# chrome-no-sandbox <file>
+# Chrome's own sandbox dies at sys_chroot in the container (podman's seccomp
+# gates chroot on CAP_SYS_CHROOT, dropped by --cap-drop=ALL): every launch
+# needs --no-sandbox. A launch is a line that names Chrome or a browser
+# launcher; the flag counts anywhere in the same file (args are often a
+# shared constant). ponytail: per-file heuristic — args kept in another
+# file give a false finding, which is feedback, not a block.
+set -uo pipefail
+f=${1:?usage: chrome-no-sandbox <file>}
+[ -f "$f" ] || exit 0
+line=$(grep -nE '\b(puppeteer|chromium)\.launch\(|\bchannel:\s*["'"'"']chrome|\bgoogle-chrome(-stable)?\b|\bheadless_shell\b' "$f" | head -1)
+[ -n "$line" ] || exit 0
+grep -q -- '--no-sandbox' "$f" && exit 0
+echo "$f:${line%%:*}: Chrome launched without --no-sandbox — it core-dumps in this container (sys_chroot); add args: ['--no-sandbox']"
+exit 1
