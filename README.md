@@ -321,6 +321,9 @@ Facts:
   `CAP_SYS_CHROOT`, and `--cap-drop=ALL` removes that capability. Without
   `--no-sandbox`, Chrome stops with a core dump. The container is the
   sandbox; the firewall and the capability limits apply to Chrome too.
+- The block installs `fonts-noto-cjk` alongside Chrome, so Japanese,
+  Chinese and Korean text renders. Other scripts or emoji need their own
+  package on that line (`fonts-noto-core`, `fonts-noto-color-emoji`).
 - The `*_SKIP_*` variables stop `npm install` from downloading a browser.
   The firewall blocks that download. Use the system Chrome.
 - Chrome's own connections (updates, safe browsing) are blocked by the
