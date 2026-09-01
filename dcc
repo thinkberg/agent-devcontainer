@@ -21,6 +21,10 @@
 #   dcc db reset        wipe the database sidecar + its data volume (re-inits
 #                      from .devcontainer/db-init.d on next dcc up)
 #   dcc allow <domain>  temporary egress grant (dies on container restart)
+#   dcc chrome [on|off|status]
+#                       your Chrome for the agent (claude --chrome): on = link
+#                       the extension's socket into the container, off = unlink
+#                       and drop the connections inside (dies on restart)
 #   dcc approve <plan> [--scope <glob>…]
 #                       approve a committed plan: lets the run enter phase
 #                       implement, optionally limited to a write scope
@@ -92,6 +96,7 @@ CTR=$NAME-dev
 DB=$NAME-db
 NET=$NAME-net
 VOL=$NAME-pgdata
+CHROME_DIR=/tmp/dcc-$NAME-chrome   # bind source of the chrome toggle (devcontainer.json, opt-in)
 
 running() { [ "$($ENGINE inspect -f '{{.State.Running}}' "$1" 2>/dev/null)" = true ]; }
 
@@ -128,6 +133,13 @@ up() {
     mkdir -p "$ROOT/.claude-devcontainer/projects/-$(printf %s "$ROOT" | sed 's|^/||; s|/|-|g')" \
         "$ROOT/.codex-devcontainer" \
         "$ROOT/.devcontainer/empty.d" "$HOME/.config/$NAME-devcontainer"
+    # the chrome toggle's bind source: ours, under /tmp — the extension's
+    # socket is on that tmpfs and a hard link needs the same filesystem
+    # (-O: nobody else pre-made it). Off at every container start, like an
+    # egress grant
+    mkdir -p -m 700 "$CHROME_DIR" && [ -O "$CHROME_DIR" ] \
+        || { echo "ERROR: $CHROME_DIR is not yours" >&2; exit 1; }
+    running "$CTR" || rm -f "$CHROME_DIR"/*.sock
     ensure_db
     npx --yes @devcontainers/cli up --docker-path "$ENGINE" \
         --workspace-folder "$ROOT" "$@"
@@ -171,7 +183,7 @@ seed() {   # agent settings from an existing project — never its tokens or log
 [ $# -gt 0 ] || set -- attach
 case "$1" in
     up)      shift; up; [ $# -eq 0 ] || exec_in "$@" ;;
-    rebuild) up --remove-existing-container ;;
+    rebuild) rm -f "$CHROME_DIR"/*.sock; up --remove-existing-container ;;   # a new container starts with chrome off
     update)  shift   # bootstrap: a project from before the script existed gets it from the template
              [ -x "$ROOT/.devcontainer/update" ] || cp -p "$TEMPLATE/update" "$ROOT/.devcontainer/update"
              exec "$ROOT/.devcontainer/update" "$@" ;;
@@ -190,6 +202,41 @@ case "$1" in
         echo "database wiped — next 'dcc up' re-initializes from .devcontainer/db-init.d"
         ;;
     allow)   $ENGINE exec -u root "$CTR" /usr/local/bin/cc-allow.sh "${2:?usage: dcc allow <domain>}" ;;
+    # your Chrome for the agent: the Claude in Chrome extension keeps a native
+    # host running on the host, listening on /tmp/claude-mcp-browser-bridge-<user>/<pid>.sock;
+    # claude inside scans the same directory for user vscode = the read-only
+    # bind mount of $CHROME_DIR. on = hard-link the live sockets in (same
+    # tmpfs), off = unlink + kill whatever holds a connection inside. The
+    # extension's own site permissions and prompts still apply, in your Chrome.
+    chrome)
+        h=/tmp/claude-mcp-browser-bridge-$(id -un)
+        case "${2:-status}" in
+            on)
+                running "$CTR" || { echo "ERROR: $CTR is not running — dcc up first" >&2; exit 1; }
+                $ENGINE inspect "$CTR" -f '{{range .Mounts}}{{.Destination}}{{"\n"}}{{end}}' | grep -qx /tmp/claude-mcp-browser-bridge-vscode \
+                    || { echo "ERROR: $CTR has no chrome mount — uncomment it in .devcontainer/devcontainer.json, then dcc rebuild (README 'Use your Chrome from the container')" >&2; exit 1; }
+                rm -f "$CHROME_DIR"/*.sock; n=0
+                for s in "$h"/*.sock; do p=${s##*/}; p=${p%.sock}   # <pid>.sock — link the live ones
+                    [ -e "$s" ] && kill -0 "$p" 2>/dev/null && ln "$s" "$CHROME_DIR"/ && n=$((n+1)); done
+                [ "$n" -gt 0 ] || { echo "ERROR: no extension socket in $h — Chrome with the Claude in Chrome extension is not running on this host" >&2; exit 1; }
+                echo "chrome ON — inside: claude --chrome, or /chrome → Reconnect extension; until 'dcc chrome off' or the next container start" ;;
+            off)
+                rm -f "$CHROME_DIR"/*.sock
+                # a unix connect() creates the server's peer socket in the
+                # client's netns, so only ss inside sees the pair: the row
+                # with the socket path, and the client row with the pid
+                ! running "$CTR" || $ENGINE exec -u vscode "$CTR" sh -c 'ss -xHp | awk "$1" | sort -u | xargs -r kill' sh \
+                    'index($5,"/tmp/claude-mcp-browser-bridge-")==1{srv[$8]=1} {row[$6]=$0} END{for(i in srv) if(i in row && match(row[i],/pid=[0-9]+/)) print substr(row[i],RSTART+4,RLENGTH-4)}'
+                echo "chrome off" ;;
+            status)
+                on=
+                for l in "$CHROME_DIR"/*.sock; do [ -e "$l" ] || continue; on=1
+                    if [ "$l" -ef "$h/${l##*/}" ]; then echo "chrome ON (${l##*/})"
+                    else echo "chrome ON, but the socket is stale (Chrome restarted) — run: dcc chrome on"; fi
+                done
+                [ -n "$on" ] || echo "chrome off" ;;
+            *) echo "usage: dcc chrome [on|off|status]" >&2; exit 1 ;;
+        esac ;;
     # approvals are root-only inside: the token lands in /run/harness/approvals,
     # which vscode reads and cannot write. Root in the userns is not the owner
     # of the workspace files, so git needs safe.directory for the blob hash.
@@ -232,5 +279,5 @@ case "$1" in
         running "$CTR" || up
         exec_in "$@"
         ;;
-    *) echo "usage: dcc [attach [cmd…]|up [cmd…]|rebuild|update|down|db reset|allow <domain>|approve <plan> [--scope g…]|approve-release <repo> <pr>|check|harness [on|off|status]|fw|root|init <name>|seed [project]]" >&2; exit 1 ;;
+    *) echo "usage: dcc [attach [cmd…]|up [cmd…]|rebuild|update|down|db reset|allow <domain>|chrome [on|off|status]|approve <plan> [--scope g…]|approve-release <repo> <pr>|check|harness [on|off|status]|fw|root|init <name>|seed [project]]" >&2; exit 1 ;;
 esac
