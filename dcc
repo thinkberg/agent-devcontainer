@@ -3,6 +3,9 @@
 # podman edition (keep-id userns — see template/devcontainer.json).
 #   dcc init <name>     adopt: copy the template to ./.devcontainer and
 #                      substitute <name> into it (run in the workspace root)
+#   dcc seed [project]  copy the agent settings (statusline, claude settings,
+#                      codex config, git identity — never tokens) from an
+#                      existing project: its dcc name or its directory
 #   dcc [attach] [cmd…] up if needed + interactive shell, or run cmd
 #                      instead of the shell (e.g. dcc attach claude); tmux
 #                      lives on the host — run dcc inside your own setup
@@ -68,6 +71,7 @@ if [ "${1:-}" = init ]; then
     git -C "$TEMPLATE" rev-parse HEAD >.devcontainer/template.rev 2>/dev/null || rm -f .devcontainer/template.rev
     echo "initialized .devcontainer for '$name'"
     echo "review .devcontainer/dcc.conf and devcontainer.json (masks, features, allowlist), then run: dcc"
+    echo "settings from an existing project: dcc seed <name>"
     exit 0
 fi
 
@@ -136,6 +140,34 @@ exec_in() {   # run a command (default: interactive shell) inside as vscode
     exec $ENGINE exec -i ${t[@]+"${t[@]}"} -u vscode -w "$ROOT" "$CTR" "$@"
 }
 
+seed() {   # agent settings from an existing project — never its tokens or logins
+    local want=${1:-} src srcname f
+    [ -n "$want" ] || read -rp "seed from project (dcc name or directory): " want || true
+    src=$want
+    # a name resolves through its container: the devcontainer CLI labels it
+    # with the workspace path
+    [ -d "$src/.devcontainer" ] || src=$($ENGINE inspect "$want-dev" \
+        -f '{{index .Config.Labels "devcontainer.local_folder"}}' 2>/dev/null || true)
+    [ -n "$src" ] && [ -d "$src/.devcontainer" ] \
+        || { echo "ERROR: no project '$want' — the name of a started project, or its directory" >&2; exit 1; }
+    src=$(cd "$src" && pwd -P)
+    [ "$src" != "$ROOT" ] || { echo "ERROR: '$want' is this project" >&2; exit 1; }
+    srcname=$(NAME=$(basename "$src"); . "$src/.devcontainer/dcc.conf" 2>/dev/null; echo "$NAME")
+    mkdir -p "$ROOT/.claude-devcontainer" "$ROOT/.codex-devcontainer" "$HOME/.config/$NAME-devcontainer"
+    seed_file() {   # src dst: copy unless dst exists; the source's absolute
+                    # path becomes this one (codex keys project trust by it)
+        [ -f "$1" ] || return 0
+        [ ! -e "$2" ] || { echo "kept $2"; return 0; }
+        perl -pe "s|\Q$src\E|$ROOT|g" "$1" >"$2" && echo "seeded $2"
+    }
+    for f in .claude-devcontainer/statusline-command.sh .claude-devcontainer/settings.json \
+             .codex-devcontainer/config.toml; do
+        seed_file "$src/$f" "$ROOT/$f"
+    done
+    seed_file "$HOME/.config/$srcname-devcontainer/gitconfig" "$HOME/.config/$NAME-devcontainer/gitconfig"
+    echo "per project, not seeded: gh-token, signing-key (README 'Add your credentials'); log in inside: claude, codex login --device-auth"
+}
+
 [ $# -gt 0 ] || set -- attach
 case "$1" in
     up)      shift; up; [ $# -eq 0 ] || exec_in "$@" ;;
@@ -190,6 +222,7 @@ case "$1" in
             status) $ENGINE exec -u vscode -w "$ROOT" -e CLAUDE_PROJECT_DIR="$ROOT" "$CTR" /usr/local/lib/harness/harness.py status ;;
             *) echo "usage: dcc harness [on|off|status]" >&2; exit 1 ;;
         esac ;;
+    seed)    seed "${2:-}" ;;
     fw)      $ENGINE exec -u root "$CTR" /usr/local/bin/devcontainer-firewall.sh ;;
     root)    shift; [ $# -gt 0 ] || set -- bash   # root shell, or one root command
              t=(); [ -t 0 ] && t=(-t)
@@ -199,5 +232,5 @@ case "$1" in
         running "$CTR" || up
         exec_in "$@"
         ;;
-    *) echo "usage: dcc [attach [cmd…]|up [cmd…]|rebuild|update|down|db reset|allow <domain>|approve <plan> [--scope g…]|approve-release <repo> <pr>|check|harness [on|off|status]|fw|root|init <name>]" >&2; exit 1 ;;
+    *) echo "usage: dcc [attach [cmd…]|up [cmd…]|rebuild|update|down|db reset|allow <domain>|approve <plan> [--scope g…]|approve-release <repo> <pr>|check|harness [on|off|status]|fw|root|init <name>|seed [project]]" >&2; exit 1 ;;
 esac

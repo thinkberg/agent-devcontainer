@@ -145,6 +145,18 @@ container makes unsigned commits.
 
 ## Start the container the first time
 
+Optional: copy the agent settings from a project that exists. Give the
+name of a started project, or its directory:
+
+```bash
+dcc seed extracarts
+```
+
+The command copies `statusline-command.sh`, `settings.json`, the Codex
+`config.toml` (with the project path changed) and the git identity. It
+does not overwrite a file that exists. It does not copy the GitHub token,
+the signing key or the logins. These are per project.
+
 ```bash
 dcc           # builds the image, starts the container, opens a shell
 claude        # log in once: open the URL in your HOST browser
@@ -204,6 +216,7 @@ both agents.
 | `dcc down`           | Stop the container and the database. All data stays.                  |
 | `dcc rebuild`        | Build a new image and container. The database does not change.        |
 | `dcc update`         | Update `.devcontainer` from the template on GitHub, keep the configuration. Then `dcc rebuild`. |
+| `dcc seed [project]` | Copy the agent settings from a project that exists (name or directory), not the tokens. Without an argument, the command asks. |
 | `dcc db reset`       | Remove the database and its data.                                     |
 | `dcc allow <domain>` | Let egress through to one domain, until the next restart.             |
 | `dcc fw`             | Run the firewall again, for example after CDN addresses change.       |
