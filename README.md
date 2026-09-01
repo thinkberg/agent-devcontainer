@@ -214,7 +214,7 @@ both agents.
 | `dcc attach <cmd>`   | Run `<cmd>` in the container, not a shell. Example: `dcc attach claude` or `dcc attach codex`. |
 | `dcc up <cmd>`       | Start the container and the database, then run `<cmd>`. Use this in scripts. |
 | `dcc down`           | Stop the container and the database. All data stays.                  |
-| `dcc rebuild`        | Build a new image and container. The database does not change.        |
+| `dcc rebuild`        | Build a new image and container, prune the images earlier rebuilds left behind. The database does not change. |
 | `dcc update`         | Update `.devcontainer` from the template on GitHub, keep the configuration. Then `dcc rebuild`. |
 | `dcc seed [project]` | Copy the agent settings from a project that exists (name or directory), not the tokens. Without an argument, the command asks. |
 | `dcc db reset`       | Remove the database and its data.                                     |
