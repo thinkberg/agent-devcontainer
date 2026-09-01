@@ -11,7 +11,8 @@
 #                      lives on the host — run dcc inside your own setup
 #   dcc up [cmd…]       build/start the container (+ database sidecar if
 #                      configured), optionally run cmd afterwards
-#   dcc rebuild         recreate the dev container (new image, fresh firewall);
+#   dcc rebuild         recreate the dev container (new image, fresh firewall)
+#                      and prune the images earlier rebuilds left untagged;
 #                      the database and its data are untouched
 #   dcc update [--since REV]
 #                       bring .devcontainer up to date with the template on
@@ -183,7 +184,11 @@ seed() {   # agent settings from an existing project — never its tokens or log
 [ $# -gt 0 ] || set -- attach
 case "$1" in
     up)      shift; up; [ $# -eq 0 ] || exec_in "$@" ;;
-    rebuild) rm -f "$CHROME_DIR"/*.sock; up --remove-existing-container ;;   # a new container starts with chrome off
+    rebuild) rm -f "$CHROME_DIR"/*.sock; up --remove-existing-container   # a new container starts with chrome off
+             # the replaced image pair (vsc-<name>-<hash>, -uid) stays behind untagged,
+             # ~2 GB per rebuild. Dangling images off the devcontainers base only:
+             # every dcc image is one, nothing else on the host qualifies
+             echo "pruned $($ENGINE image prune -f --filter label=dev.containers.id=base-ubuntu | wc -l) old dev container images" ;;
     update)  shift   # bootstrap: a project from before the script existed gets it from the template
              [ -x "$ROOT/.devcontainer/update" ] || cp -p "$TEMPLATE/update" "$ROOT/.devcontainer/update"
              exec "$ROOT/.devcontainer/update" "$@" ;;
