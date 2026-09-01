@@ -59,6 +59,12 @@
     // the project's harness rules. The agent proposes changes to these
     // files as text; applying them is a host act (edit + dcc rebuild).
     "source=${localWorkspaceFolder}/.devcontainer,target=${localWorkspaceFolder}/.devcontainer,type=bind,readonly"
+    // your Chrome for the agent (claude --chrome; Linux hosts only): the
+    // extension's native host on the host listens on a unix socket, and the
+    // agent's claude scans this directory for one. Empty (= off) until
+    // `dcc chrome on` hard-links the socket in; dcc up creates the source.
+    // README 'Use your Chrome from the container':
+    //,"source=/tmp/dcc-PROJECTNAME-chrome,target=/tmp/claude-mcp-browser-bridge-vscode,type=bind,readonly"
 
     // ---- masked secret files (this list is the inventory) ----------------
     // Every secret-bearing file in the workspace gets an empty read-only

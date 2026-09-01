@@ -219,6 +219,7 @@ both agents.
 | `dcc seed [project]` | Copy the agent settings from a project that exists (name or directory), not the tokens. Without an argument, the command asks. |
 | `dcc db reset`       | Remove the database and its data.                                     |
 | `dcc allow <domain>` | Let egress through to one domain, until the next restart.             |
+| `dcc chrome on\|off\|status` | Open your Chrome (the Claude in Chrome extension) to the agent, until `dcc chrome off` or the next restart. Linux hosts only. |
 | `dcc fw`             | Run the firewall again, for example after CDN addresses change.       |
 | `dcc approve <plan>` | Approve a committed plan. The run can then go to phase implement. `--scope <glob>…` limits the writes. |
 | `dcc approve-release <repo> <pr>` | Approve the merge of a Release PR at the head of the PR. |
@@ -347,6 +348,50 @@ Facts:
   only). A shell command `google-chrome …` without the flag is denied
   (`chrome-no-sandbox-shell`).
 
+## Use your Chrome from the container
+
+Off by default. Linux hosts only. This procedure lets the agent operate
+your Chrome through the Claude in Chrome extension (`claude --chrome`),
+between `dcc chrome on` and `dcc chrome off`.
+
+How it works: the extension keeps a native host running on the host. The
+native host listens on a Unix socket in `/tmp/claude-mcp-browser-bridge-<user>/`.
+Claude Code in the container looks in the same directory for the user
+`vscode`. That directory is a read-only bind mount of `/tmp/dcc-<name>-chrome`,
+a directory that `dcc up` makes. `dcc chrome on` puts a hard link of the
+socket in that directory. `dcc chrome off` removes the link and stops the
+processes in the container that hold a connection.
+
+1. Install the Claude in Chrome extension on the host. Sign in with the
+   claude.ai account that the container uses.
+2. Edit `.devcontainer/devcontainer.json`. Uncomment the
+   `/tmp/dcc-<name>-chrome` mount.
+3. Run `dcc rebuild`.
+4. Start Chrome on the host. Run `dcc chrome on`.
+5. In the container, start `claude --chrome`. In a session that already
+   runs, use `/chrome` → "Reconnect extension". The browser tools
+   (`mcp__claude-in-chrome__*`) are then available.
+6. Run `dcc chrome off` when the task is complete.
+
+Facts:
+
+- The grant stops at `dcc chrome off` and at each container start.
+  `dcc chrome status` shows the state.
+- Without the link, no process in the container can reach the socket.
+  The mount is read-only: the agent cannot put a socket in it.
+- When Chrome restarts, the native host gets a new socket. The link is
+  then stale, and `dcc chrome status` says so. Run `dcc chrome on` again.
+- The extension's site-level permissions and its permission prompts
+  apply. The prompts appear in your Chrome. Bypass permissions mode is
+  off in the container (managed settings), so Claude Code does not skip
+  these prompts.
+- The host and the container can use the extension at the same time.
+  The native host accepts more than one client.
+- The container login must be `/login`. The extension does not accept a
+  `claude setup-token` token or an API key.
+- Not on macOS: the socket is in the macOS `/tmp`. The podman VM cannot
+  connect to it.
+
 ## Control egress
 
 - Permanent: add the domain to `.devcontainer/allowlist.txt`. Then run
@@ -406,7 +451,9 @@ the push, because the token has no Workflows permission.
 - Secret rotation, and each step that touches secret values. You run
   these commands in your terminal. The agent gives you the commands.
   Secret values do not go through an agent session.
-- All tasks for which a browser session is necessary.
+- All tasks for which a browser session is necessary. The exception is a
+  task for which you run `dcc chrome on` (see
+  [Use your Chrome from the container](#use-your-chrome-from-the-container)).
 
 ## The safety harness
 
