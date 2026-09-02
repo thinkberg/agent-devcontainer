@@ -127,6 +127,10 @@ ensure_db() {
 }
 
 up() {
+    # a template line merged in by hand keeps its placeholder: podman would
+    # build for minutes, then refuse the mount
+    if grep -n PROJECTNAME "$ROOT/.devcontainer/devcontainer.json" >&2; then
+        echo "ERROR: PROJECTNAME left in .devcontainer/devcontainer.json (above)" >&2; exit 1; fi
     # bind sources; podman won't create them (empty.d: directory-mask source).
     # The project-state dir under .claude-devcontainer too: a nested mount
     # there (e.g. the host memory dir) makes podman create the missing
@@ -188,7 +192,7 @@ case "$1" in
              # the replaced image pair (vsc-<name>-<hash>, -uid) stays behind untagged,
              # ~2 GB per rebuild. Dangling images off the devcontainers base only:
              # every dcc image is one, nothing else on the host qualifies
-             echo "pruned $($ENGINE image prune -f --filter label=dev.containers.id=base-ubuntu | wc -l) old dev container images" ;;
+             echo "pruned $($ENGINE image prune -f --filter label=dev.containers.id=base-ubuntu | wc -l) layers of old dev container images" ;;
     update)  shift   # bootstrap: a project from before the script existed gets it from the template
              [ -x "$ROOT/.devcontainer/update" ] || cp -p "$TEMPLATE/update" "$ROOT/.devcontainer/update"
              exec "$ROOT/.devcontainer/update" "$@" ;;
