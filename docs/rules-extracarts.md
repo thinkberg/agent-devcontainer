@@ -176,7 +176,7 @@ a control on a command string is not a control on the effect.
 | (rule) | an app call, a route, or a doc row that the other two sources lack | reported | `{param}` vs `${expr}` normalized; `?query` dropped; test files and `include_in_schema=False` ignored; a `/webhooks` route and a `/webhooks` doc row both ignored |
 | (harness) | registry missing or corrupt; run state unreadable | every command denied; phase falls to brainstorm | — |
 
-198 cases in the engine suite and 11 in the overlay suite. All pass.
+223 cases in the engine suite and 11 in the overlay suite. All pass.
 
 ## 6. What enforces today, and the gaps
 

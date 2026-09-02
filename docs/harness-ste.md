@@ -71,8 +71,8 @@ directories for these paths.
 | `harness.py hook stop-checks` | Runs when the session stops. Runs the `stop` checkers. A `block` rule blocks the session end one time in each session. A `warn` rule becomes a system message. |
 | `harness.py hook ticket-state` | Runs after a `Bash` call and at the session end. If the session changed tickets, the session cannot stop until `bin/check-tickets` ran without findings. |
 | `harness.py status` and the other verbs | The CLI. Refer to A.7. |
-| `checkers/` | Eight generic checkers. Refer to A.6. |
-| `tests/run.sh` | 201 tests on a test workspace. |
+| `checkers/` | Nine generic checkers. Refer to A.6. |
+| `tests/run.sh` | 223 tests on a test workspace. |
 
 ### A.4 The hook contract
 
@@ -151,7 +151,8 @@ merged registry. The file name is in `HARNESS_RULES`.
 
 The generic checkers are: `spec-section-stability`,
 `review-tick-has-date`, `hugo-warning-clean`, `checklist-upkeep`,
-`hotfix-must-land`, `versions-repin`, `release-approved` and
+`hotfix-must-land`, `versions-repin`, `release-approved`,
+`release-checklist-copy` and
 `ste-compliant` (refer to D.8). A generic
 checker is not active until the project overlay connects the checker to
 the project paths.

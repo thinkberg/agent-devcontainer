@@ -1,0 +1,21 @@
+#!/bin/bash
+# release-checklist-copy <deployment-repo>  (stdin: hook input for a
+# `gh pr merge` command)
+# A production release merges only with a dated copy of the deploy
+# checklist that carries this release's tasks: <deployment-repo>/
+# YYYY-MM-DD-deploy.md with a task line under '## This release'. PRs
+# whose base is not production pass.
+set -uo pipefail
+repo=${1:?usage: release-checklist-copy <deployment-repo>}; name=$(basename "$repo")
+input=$(cat); cmd=$(jq -r '.tool_input.command // empty' <<<"$input"); cwd=$(jq -r '.cwd // empty' <<<"$input")
+pr=$(grep -oE '\bgh\s+pr\s+merge\s+(\S+\s+)*?([0-9]+|https?://\S+/pull/[0-9]+)' <<<"$cmd" | grep -oE '[0-9]+$' | head -1)
+[ -n "$pr" ] || exit 0   # merge without a number: release-approved rejects it
+repoflag=$(grep -oE '(-R|--repo)\s+\S+' <<<"$cmd" | awk '{print $2}' | head -1)
+args=(pr view "$pr" --json baseRefName); [ -n "$repoflag" ] && args+=(-R "$repoflag")
+view=$(cd "${cwd:-.}" && gh "${args[@]}" 2>/dev/null) || { echo "cannot read PR $pr via gh"; exit 3; }
+[ "$(jq -r .baseRefName <<<"$view")" = production ] || exit 0
+copy=$(ls -1 "$repo"/*-deploy.md 2>/dev/null | sort | tail -1)
+[ -n "$copy" ] || { echo "no dated deploy checklist in $name: cp CHECKLIST.md \$(date +%F)-deploy.md and fill '## This release' with this release's tasks"; exit 2; }
+awk '/^## This release/{s=1;next} /^## /{s=0} s && /^- \[/{f=1} END{exit !f}' "$copy" \
+    || { echo "$name/$(basename "$copy") has no task under '## This release' — add this release's tasks (post-deploy loads, backfills, config seeds)"; exit 2; }
+exit 0

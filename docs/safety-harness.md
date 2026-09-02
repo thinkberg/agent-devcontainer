@@ -398,7 +398,7 @@ docs/safety-harness.md           # this document
 `Dockerfile` copies the harness to `/usr/local/lib/harness`, owned by
 root, mode 0755. `vscode` can run it. `vscode` cannot change it.
 
-The engine — hooks, the `harness` CLI, eight generic checkers, the
+The engine — hooks, the `harness` CLI, nine generic checkers, the
 generic registry with the default working process — and its tests exist
 today in [`template/harness/`](../template/harness/) and are in the
 image (P0). Project-specific rules never go there: each project carries
