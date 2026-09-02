@@ -112,7 +112,7 @@ guarantee yet, and the row says what would give one.
 | `db-no-improvise` — when the DB is down, ask | implement | 2026-08-22: `pgserver` + `initdb` instead of asking | `pre-bash` regex | hook only; acceptable — the damage is wasted time, not data |
 | `protected-paths` — legal archives, PDFs, `public/`, root `out/`, policy files, workflows, own settings | implement | (www CLAUDE.md; outputs rule; self-protection) | `pre-write` glob on Edit/Write and a Bash heuristic | **read-only bind mount** per path in `devcontainer.json`, the mask technique the template already uses |
 
-### 4.2 Verify — 13 rules; 10 mechanized here, 3 existing
+### 4.2 Verify — 14 rules; 11 mechanized here, 3 existing
 
 Each checker follows the contract in `harness/checkers/README.md`.
 `harness check` runs the `gate` ones on demand; that is the dry run of
@@ -128,6 +128,7 @@ the gate in plan P4.
 | `checklist-upkeep` | verify | `ansible/`, `portainer.yml`, workflows or compose changed and `CHECKLIST.md` not | Stop (warns), gate |
 | `hotfix-must-land` | release | dirty tree or a branch with commits main lacks, before `ansible-playbook`; `--check` dry runs pass | PreToolUse on `ansible-playbook`; gate |
 | `versions-repin` | release | `ansible/versions.yml` pins ≠ the latest `v*` tag of the code repo — the playbook would roll production back | PreToolUse on `ansible-playbook`; gate. The live comparison stays `bin/stack-status.py` |
+| `release-checklist-copy` | release | a PR whose base is `production` merges only with an unarchived `*-deploy.md` in `extracarts-deployment` that has a task under `## This release` (via `gh pr view`); other bases pass (deployment#45) | PreToolUse on `gh pr merge` (blocks) |
 | `sub-issues-native` | intake | "Sub-ticket of <ref>" in an open issue's body but absent from the parent's native `sub_issues` (via `gh`) | gate; drop-in for `bin/check-tickets` |
 | `status-follows-pr` | publish | an open PR's ticket (closing refs, `task/<n>-` branch, `#n` in the title) not in Review; In Progress without assignee (via `gh`) | gate; drop-in for `bin/check-tickets` |
 | `legal-version-bump` | release | `bin/check-legal-consistency.py` in `deploy.yaml` | **exists** — the model rule: prose, deterministic checker, CI gate |
