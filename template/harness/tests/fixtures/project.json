@@ -136,6 +136,17 @@
           "app_tag": "app"
         }
       }
+    },
+    {
+      "id": "release-checklist-copy",
+      "class": "verify",
+      "step": "release",
+      "trigger": "pre_bash",
+      "text": "A production release merges only with a dated deploy checklist carrying this release's tasks.",
+      "check": {
+        "when": "\\bgh\\s+pr\\s+merge\\b",
+        "run": "{checkers}/release-checklist-copy {root}/deployment"
+      }
     }
   ]
 }

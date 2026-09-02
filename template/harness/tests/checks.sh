@@ -98,6 +98,8 @@ expect deny:versions-repin "$PB" "$(bj "ansible-playbook site.yml" "$D")" "pre-b
 sed -i 's/backend_tag: v1.0.0/backend_tag: v1.0.1/' "$D/ansible/versions.yml"; gq "$D" commit -q -am repin
 expect_rc 0 "re-pinned passes" ckm versions-repin "$D"
 
+# a production merge also needs the dated deploy checklist (release-checklist-copy, tested below); a committed copy keeps the tree clean
+printf '## This release\n- [ ] load templates\n## Every release\n' >"$D/2026-09-02-deploy.md"; gq "$D" add 2026-09-02-deploy.md; gq "$D" commit -q -m copy
 echo "== release-ships-tip (approval token bound to the PR head)"
 export FAKE_PRVIEW=$(mktemp); echo '{"baseRefName":"production","headRefOid":"aaaa1111aaaa1111aaaa1111aaaa1111aaaa1111"}' >"$FAKE_PRVIEW"
 cp "$HERE/fake-gh" "$FB/gh"
@@ -109,6 +111,24 @@ expect deny:release-ships-tip "$PB" "$(bj "gh pr merge 7 --merge" "$B")" "main m
 echo '{"baseRefName":"main","headRefOid":"cccc"}' >"$FAKE_PRVIEW"
 expect allow "$PB" "$(bj "gh pr merge 8 --squash" "$B")" "a PR to main needs no release approval"
 expect deny:release-ships-tip "$PB" "$(bj "gh pr merge" "$B")" "merge without a PR number denied"
+
+echo "== release-checklist-copy (a production merge needs the dated deploy checklist with this release's tasks)"
+# expect_rc_in <code> <label> <stdin> <cmd...>
+expect_rc_in() { local want=$1 label=$2 in=$3; shift 3; "$@" >/dev/null 2>&1 <<<"$in"; local got=$?
+    if [ "$got" = "$want" ]; then pass=$((pass+1)); else fail=$((fail+1)); echo "FAIL [$label] wanted exit $want, got $got"; fi; }
+echo '{"baseRefName":"production","headRefOid":"aaaa1111aaaa1111aaaa1111aaaa1111aaaa1111"}' >"$FAKE_PRVIEW"   # PR 7: approved above
+hook=$(bj "gh pr merge 7 --merge" "$B")
+expect_rc_in 0 "copy with a task passes" "$hook" "$CK/release-checklist-copy" "$D"
+expect_rc_in 0 "empty stdin is a no-op" "" "$CK/release-checklist-copy" "$D"
+expect allow "$PB" "$hook" "pre-bash: approved release with the copy merges"
+printf '## This release\n\nprose only, no task\n\n## Every release\n- [ ] x\n' >"$D/2026-09-02-deploy.md"
+expect_rc_in 2 "copy without a This-release task blocks" "$hook" "$CK/release-checklist-copy" "$D"
+expect deny:release-checklist-copy "$PB" "$hook" "pre-bash: approved release, copy without tasks — denied"
+rm "$D/2026-09-02-deploy.md"
+expect_rc_in 2 "no dated copy blocks" "$hook" "$CK/release-checklist-copy" "$D"
+echo '{"baseRefName":"main","headRefOid":"cccc"}' >"$FAKE_PRVIEW"
+expect_rc_in 0 "base main passes untouched" "$hook" "$CK/release-checklist-copy" "$D"
+gq "$D" checkout -q -- 2026-09-02-deploy.md
 
 echo "== scope-to-project (approval carries the write scope)"
 PL=planning/plans/2026-08-24-s.md; mkdir -p "$P/plans"; echo "# s" >"$P/plans/2026-08-24-s.md"
