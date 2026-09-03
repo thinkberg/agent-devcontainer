@@ -10,8 +10,6 @@
 api.anthropic.com
 claude.ai
 console.anthropic.com
-statsig.anthropic.com
-statsig.com
 sentry.io
 
 # OpenAI / Codex (API and browser/device authentication)
