@@ -55,6 +55,11 @@ COPY devcontainer-firewall.sh entry.sh setup-workspace.sh cc-allow.sh /usr/local
 RUN chmod 755 /usr/local/bin/devcontainer-firewall.sh /usr/local/bin/entry.sh \
         /usr/local/bin/setup-workspace.sh /usr/local/bin/cc-allow.sh
 
+# git asks gh for the token on every HTTPS push. Baked into the system
+# config, so it works no matter when the token file appears (postCreate runs
+# once; a token added after that used to leave git with no credential helper)
+RUN printf '[credential "https://github.com"]\n\thelper = !gh auth git-credential\n' > /etc/gitconfig
+
 # GH_TOKEN (scoped PAT) into every interactive shell; bashrc, not profile.d,
 # because podman-exec shells are interactive non-login
 RUN printf '%s\n' \
