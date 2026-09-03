@@ -105,6 +105,16 @@
             "timeout": 10
           }
         ]
+      },
+      {
+        "matcher": "WebFetch",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "jq -e '(.tool_input.url // \"\" | capture(\"^[a-z]+://(?<h>[^/:?#]+)\").h // \"<domain>\") as $h | select(.error // \"\" | test(\"ECONNREFUSED|ETIMEDOUT|EHOSTUNREACH|ENETUNREACH|UND_ERR|timed? ?out|fetch failed\"; \"i\")) | {hookSpecificOutput:{hookEventName:\"PostToolUseFailure\",additionalContext:(\"WebFetch of \\($h) failed at the network layer: the container firewall lets egress through only to allowlisted domains, and you cannot change that. Ask the user to run on the host: dcc allow \\($h)  (a grant until the next container restart; permanent: add the domain to .devcontainer/allowlist.txt and dcc rebuild). Then retry the fetch. Do not work around the firewall.\")},systemMessage:(\"WebFetch blocked by the firewall - Claude asks for: dcc allow \" + $h)}' 2>/dev/null || true",
+            "timeout": 10
+          }
+        ]
       }
     ]
   }
