@@ -401,6 +401,8 @@ Facts:
 - Do not put production hosts, cloud APIs and domains of that type on
   the list. For these domains, the agent must tell you each time. You
   then run `dcc allow`.
+- When a `WebFetch` fails on the firewall, a hook tells Claude Code to
+  ask you for `dcc allow <domain>` and not to work around the block.
 
 ## Mask secret files
 
