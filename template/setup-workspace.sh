@@ -12,11 +12,8 @@ for _ in $(seq 60); do [ -f /run/devcontainer-entry-done ] && break; sleep 1; do
 # repo — see README "Per-user credentials"
 git config --global include.path "$HOME/.config/devcontainer/gitconfig"
 # host repos may be cloned with ssh remotes; in here everything goes HTTPS
-# with the scoped PAT
+# with the scoped PAT (the credential helper is in the image: /etc/gitconfig)
 git config --global url."https://github.com/".insteadOf "git@github.com:"
-if [ -r "$HOME/.config/devcontainer/gh-token" ]; then
-    GH_TOKEN="$(cat "$HOME/.config/devcontainer/gh-token")" gh auth setup-git
-fi
 if [ -r "$HOME/.config/devcontainer/signing-key" ]; then
     git config --global gpg.format ssh
     git config --global user.signingkey "$HOME/.config/devcontainer/signing-key"
