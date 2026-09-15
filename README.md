@@ -392,6 +392,53 @@ Facts:
 - Not on macOS: the socket is in the macOS `/tmp`. The podman VM cannot
   connect to it.
 
+## Use Graft
+
+Off by default. This procedure installs [Graft](https://github.com/trailhq/Graft)
+in the image. Graft makes a graph of the code in `graft/`. The agent queries
+the graph with the Graft tools in place of `grep` and file reads.
+
+1. Edit `.devcontainer/devcontainer.json`. Uncomment the `npm-package` line
+   in `features`.
+2. Run `dcc rebuild`.
+3. In the container, run this command one time in the project root:
+
+   ```bash
+   graft init --agents claude agents --no-global --no-statusline
+   ```
+
+   The command builds `graft/` and writes the wiring:
+   `.claude/skills/graft/SKILL.md`, `.claude/helpers/`,
+   `.claude/settings.json`, `.mcp.json` and a Graft section in `AGENTS.md`.
+   Commit the wiring if the team uses it. `graft/` goes into `.gitignore`.
+4. Start `claude`. Approve the project MCP server `graft` one time. The
+   tools `mcp__graft__*` are then available.
+
+Facts:
+
+- Run `graft init` in the container, not on the host. On a host without
+  Graft, the command writes an `npx` command into `.mcp.json`. That command
+  downloads Graft at each start of the MCP server.
+- The hooks and the `statusLine` that `graft init` writes into
+  `.claude/settings.json` do not operate in the container. The managed
+  settings permit only the harness hooks and the managed statusline. Claude
+  Code uses the skill and the MCP tools. Codex uses the `AGENTS.md` section
+  and the `graft` command, because the Codex requirements permit no MCP
+  servers. Each query refreshes the graph before it answers. The hooks are
+  not necessary.
+- Graft runs in the container. It sees the masked files as empty. The graph
+  has no content from these files.
+- `graft build --deep` adds summaries from an LLM. This needs an API key. Do
+  not put the key in the container. Run the command on the host. `graft/` is
+  in the workspace, so the container sees the result, and `dcc rebuild`
+  keeps it.
+- Telemetry is off: `containerEnv` sets `DO_NOT_TRACK=1`. The daily version
+  check uses `registry.npmjs.org`, which is on the allowlist. No other domain
+  is necessary.
+- `graft upgrade` does not operate: the installation is root-owned. To
+  update Graft, change the version in `devcontainer.json` and run
+  `dcc rebuild`.
+
 ## Control egress
 
 - Permanent: add the domain to `.devcontainer/allowlist.txt`. Then run
