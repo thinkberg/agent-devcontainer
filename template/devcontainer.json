@@ -85,6 +85,9 @@
   "containerEnv": {
     "CLAUDE_CONFIG_DIR": "/home/vscode/.claude",
     "DISABLE_AUTOUPDATER": "1",
+    // console-do-not-track: a tool that honors it (Graft's usage ping among them)
+    // sends nothing; the firewall drops the ping anyway, this saves the try
+    "DO_NOT_TRACK": "1",
     // the node feature makes every interactive shell re-link
     // $NVM_DIR/current (rm + ln); the CLI's env-probe shell and dcc's shell
     // overlap at start and race on it ("ln: … current/vXX: File exists").
@@ -115,6 +118,10 @@
     "ghcr.io/anthropics/devcontainer-features/claude-code:1": {}
     // project toolchains as needed, e.g.:
     //,"ghcr.io/devcontainers/features/python:1": { "version": "3.13", "installTools": false }
+    // Graft: a code graph the agent queries in place of grep (README 'Use Graft').
+    // A feature, not the Dockerfile: node arrives after the Dockerfile runs; this
+    // one installs after node, at build time, root-owned like claude itself
+    //,"ghcr.io/devcontainers-extra/features/npm-package:1": { "package": "@nanonets/graft", "version": "0.18.0" }
   },
 
   // pid 1 is entry.sh (Dockerfile ENTRYPOINT): firewall as root before
