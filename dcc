@@ -68,7 +68,7 @@ if [ "${1:-}" = init ]; then
     done
     # agent state contains auth tokens — never commit it
     if [ -d .git ]; then
-        for state in .claude-devcontainer/ .codex-devcontainer/; do
+        for state in .claude-devcontainer/ .codex-devcontainer/ .graft-devcontainer/; do
             grep -qxF "$state" .gitignore 2>/dev/null || { echo "$state" >>.gitignore; echo "added $state to .gitignore"; }
         done
     fi
@@ -136,7 +136,7 @@ up() {
     # there (e.g. the host memory dir) makes podman create the missing
     # parents as container root = host subuid, and the agent can't write them
     mkdir -p "$ROOT/.claude-devcontainer/projects/-$(printf %s "$ROOT" | sed 's|^/||; s|/|-|g')" \
-        "$ROOT/.codex-devcontainer" \
+        "$ROOT/.codex-devcontainer" "$ROOT/.graft-devcontainer" \
         "$ROOT/.devcontainer/empty.d" "$HOME/.config/$NAME-devcontainer"
     # the chrome toggle's bind source: ours, under /tmp — the extension's
     # socket is on that tmpfs and a hard link needs the same filesystem
