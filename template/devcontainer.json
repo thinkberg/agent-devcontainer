@@ -51,6 +51,9 @@
     // Codex login, configuration and session state. Kept separate from the
     // host ~/.codex for the same reason as Claude state above.
     "source=${localWorkspaceFolder}/.codex-devcontainer,target=/home/vscode/.codex,type=bind",
+    // Graft's per-machine state (the telemetry opt-out); survives dcc rebuild.
+    // An empty dir when Graft is off (README 'Use Graft').
+    "source=${localWorkspaceFolder}/.graft-devcontainer,target=/home/vscode/.graft,type=bind",
     // the one credential: scoped PAT (+ optional git identity and ssh
     // signing key), read-only; per-project dir on the host, fixed path
     // inside so the scripts stay generic
@@ -85,9 +88,6 @@
   "containerEnv": {
     "CLAUDE_CONFIG_DIR": "/home/vscode/.claude",
     "DISABLE_AUTOUPDATER": "1",
-    // console-do-not-track: a tool that honors it (Graft's usage ping among them)
-    // sends nothing; the firewall drops the ping anyway, this saves the try
-    "DO_NOT_TRACK": "1",
     // the node feature makes every interactive shell re-link
     // $NVM_DIR/current (rm + ln); the CLI's env-probe shell and dcc's shell
     // overlap at start and race on it ("ln: … current/vXX: File exists").

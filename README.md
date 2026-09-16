@@ -74,9 +74,9 @@ dcc init myproject
 ```
 
 The command copies the template into `.devcontainer/` and sets the name.
-In a git repository, the command also adds `.claude-devcontainer/` and
-`.codex-devcontainer/` to `.gitignore`. These directories hold agent login
-state. Do not commit them.
+In a git repository, the command also adds `.claude-devcontainer/`,
+`.codex-devcontainer/` and `.graft-devcontainer/` to `.gitignore`. These
+directories hold agent login state. Do not commit them.
 
 Step 2: Edit the copied files. The files are part of your project:
 
@@ -401,13 +401,14 @@ the graph with the Graft tools in place of `grep` and file reads.
 1. Edit `.devcontainer/devcontainer.json`. Uncomment the `npm-package` line
    in `features`.
 2. Run `dcc rebuild`.
-3. In the container, run this command one time in the project root:
+3. In the container, run these commands one time in the project root:
 
    ```bash
    graft init --agents claude agents --no-global --no-statusline
+   graft telemetry disable
    ```
 
-   The command builds `graft/` and writes the wiring:
+   The first command builds `graft/` and writes the wiring:
    `.claude/skills/graft/SKILL.md`, `.claude/helpers/`,
    `.claude/settings.json`, `.mcp.json` and a Graft section in `AGENTS.md`.
    Commit the wiring if the team uses it. `graft/` goes into `.gitignore`.
@@ -432,9 +433,13 @@ Facts:
   not put the key in the container. Run the command on the host. `graft/` is
   in the workspace, so the container sees the result, and `dcc rebuild`
   keeps it.
-- Telemetry is off: `containerEnv` sets `DO_NOT_TRACK=1`. The daily version
-  check uses `registry.npmjs.org`, which is on the allowlist. No other domain
-  is necessary.
+- `graft telemetry disable` writes `~/.graft/telemetry.json`. The container
+  keeps `~/.graft` in `<project>/.graft-devcontainer` on the host, so the
+  setting survives `dcc rebuild`. Do not set `DO_NOT_TRACK` instead: Claude
+  Code honors it too and then loses Remote Control and auto mode. The
+  firewall drops the Graft events in any case. The daily version check uses
+  `registry.npmjs.org`, which is on the allowlist. No other domain is
+  necessary.
 - `graft upgrade` does not operate: the installation is root-owned. To
   update Graft, change the version in `devcontainer.json` and run
   `dcc rebuild`.
