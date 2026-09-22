@@ -3,10 +3,11 @@
   "version": 2,
   "steps": ["intake", "plan", "implement", "verify", "commit", "publish", "release", "close", "ops"],
   "phases": {
-    "$comment": "The default working process: brainstorm and discussion (markdown only) -> plan (committed, ponytail-reviewed) -> review by the operator -> approval (a token only the operator can write) -> implement. A project narrows plan_glob, ticket_regex and allow_write.",
+    "$comment": "The default working process: brainstorm and discussion (markdown only) -> plan (committed, ponytail-reviewed) -> review by the operator -> approval (a token only the operator can write) -> implement. A project narrows plan_glob, ticket_regex and allow_write, and names in branch_exempt the repos (workspace-relative globs, e.g. a planning repo) that plan-work-on-branch skips.",
     "order": ["brainstorm", "plan", "review", "implement"],
     "plan_glob": "*plans/*.md",
     "ticket_regex": "^[a-z]*#[0-9]+$",
+    "branch_exempt": [],
     "always_allow": ["/tmp/*", "*/.claude/projects/*/memory/*", "/home/vscode/.claude/projects/*"],
     "allow_write": {
       "brainstorm": ["*.md"],
@@ -66,6 +67,12 @@
       "check": { "regex": [
         "--no-verify|--no-gpg-sign|core\\.hooksPath|commit\\.gpgsign=false|gpg\\.program=",
         "\\bgit(\\s+-[cC]\\s+\\S+)*\\s+commit\\s+((?:[^\"'\\s]+|\"[^\"]*\"|'[^']*')\\s+)*-n(\\s|$)" ] }
+    },
+    {
+      "id": "plan-work-on-branch", "class": "enforce", "step": "commit", "trigger": "pre_bash",
+      "source": "operator's rule: the work of an approved plan goes on a branch, not main",
+      "text": "In phase implement, never commit on main or master and never push to them. Branch off (git -C /repo switch -c <branch>) and open a PR. Plans and plan revisions outside implement may still be committed on main, and so may the repos in phases.branch_exempt (a planning repo).",
+      "check": { "builtin": "plan-work-on-branch" }
     },
     {
       "id": "no-production-push", "class": "enforce", "step": "release", "trigger": "pre_bash",

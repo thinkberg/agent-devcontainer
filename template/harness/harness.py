@@ -193,6 +193,30 @@ def git(cwd, *args):
     return r.stdout.rstrip("\n") if r.returncode == 0 else None
 
 
+def repo_root(d):
+    """the nearest directory from d upwards that has a .git; empty outside a repo"""
+    while not os.path.exists(os.path.join(d, ".git")):
+        if d == "/":
+            return ""
+        d = os.path.dirname(d)
+    return d
+
+
+def head_branch(root):
+    """The branch checked out in the repo at root, read from HEAD (no git
+    spawned); empty when detached."""
+    g = os.path.join(root, ".git")
+    try:
+        if os.path.isfile(g):   # a worktree or submodule: `gitdir: <path>`
+            with open(g, encoding="utf-8") as fh:
+                g = os.path.join(root, fh.read().split("gitdir:", 1)[1].strip())
+        with open(os.path.join(g, "HEAD"), encoding="utf-8") as fh:
+            head = fh.read().strip()
+    except (OSError, IndexError):
+        return ""
+    return head[len("ref: refs/heads/"):] if head.startswith("ref: refs/heads/") else ""
+
+
 def committed_blob(rel):
     """The committed blob hash of the plan, or empty when it is not committed
     or has uncommitted changes. Operator time only (phase, approve, status)."""
@@ -352,6 +376,7 @@ def note_touched(sid, rel):
 # ---- hook: pre-bash ----------------------------------------------------------
 
 MUTATING = "add|commit|push|mv|rm|reset|rebase|merge|checkout|switch|tag|stash|cherry-pick|revert|restore|clean|am|apply"
+MAIN = ("main", "master")
 
 
 def hook_pre_bash():
@@ -374,6 +399,36 @@ def hook_pre_bash():
             if not re.search(r"\s-C\s+/", occ):
                 deny("harness [git-c-absolute]: mutating git without -C /absolute/path in '%s' — "
                      "name the repo explicitly, a cd does not persist between calls" % occ)
+
+    # builtin plan-work-on-branch: in phase implement no commit on main and no
+    # push to it; the plan's work goes on a branch and reaches main by a PR.
+    # Repos in phases.branch_exempt (a planning repo) are skipped.
+    if rule_active("plan-work-on-branch") and "git" in cmd and effective_phase() == "implement":
+        exempt = (RULES.get("phases") or {}).get("branch_exempt") or []
+        for seg in segments(cmd):
+            c, args = peel(seg) if seg else ("", [])
+            if c != "git":
+                continue
+            cdirs, sub, rest = git_parts(args)
+            repo = repo_root(os.path.realpath(os.path.join(inp.get("cwd") or ROOT, *cdirs)))
+            if not repo or any(glob_match(os.path.relpath(repo, ROOT), g) for g in exempt):
+                continue
+            head = head_branch(repo)
+            if sub == "commit":
+                dsts = [head]
+            elif sub == "push":
+                if "--all" in rest or "--mirror" in rest:
+                    dsts = list(MAIN)
+                else:   # refspec destinations; none given = the current branch
+                    pos = [a for a in rest if not a.startswith("-") and not re.search(r"[<>]", a)]
+                    dsts = [re.sub(r"^refs/heads/", "", r.split(":")[-1].lstrip("+")) for r in pos[1:]] or [head]
+                    dsts = [head if d in ("HEAD", "@") else d for d in dsts]
+            else:
+                continue
+            if any(d in MAIN for d in dsts):
+                deny("harness [plan-work-on-branch]: '%s' %s — in phase implement the work goes on a branch "
+                     "(git -C %s switch -c <branch>) and reaches main through a PR"
+                     % (" ".join(seg), "commits on " + head if sub == "commit" else "pushes to main", repo))
 
     # checker-backed rules: `when` selects the command, the checker decides
     for r in rules_with_trigger("pre_bash"):
@@ -474,9 +529,48 @@ def words(s):
     return out
 
 
+def segments(cmd):
+    """the simple commands of a shell line, each a list of words"""
+    seg = []
+    for wd in words(strip_heredocs(cmd)):
+        if wd == SEP:
+            yield seg
+            seg = []
+        else:
+            seg.append(wd)
+    yield seg
+
+
 WRITERS = {"tee", "truncate", "touch", "chmod", "chown", "mkdir", "rm", "rmdir", "mv", "dd"}
 LAST_IS_TARGET = {"cp", "rsync", "install", "ln"}    # sources are reads
 WRAPPERS = {"sudo", "env", "nice", "timeout"}
+
+
+def peel(w):
+    """(command name, its arguments) with sudo/env/nice/timeout peeled off"""
+    c, args = os.path.basename(w[0]), w[1:]
+    while c in WRAPPERS and args:
+        c, args = os.path.basename(args[0]), args[1:]
+        while args and (args[0].startswith("-") or ("=" in args[0] and c == "env")):
+            args = args[1:]
+    return c, args
+
+
+def git_parts(args):
+    """git's arguments -> (the -C dirs, the subcommand, the subcommand's arguments)"""
+    cdirs, sub, rest, skip = [], "", [], ""
+    for a in args:
+        if sub:
+            rest.append(a)
+        elif skip:
+            if skip == "-C":
+                cdirs.append(a)
+            skip = ""
+        elif a in ("-C", "-c"):
+            skip = a
+        elif not a.startswith("-"):
+            sub = a
+    return cdirs, sub, rest
 
 
 def judge_segment(seg):
@@ -503,11 +597,7 @@ def judge_segment(seg):
         i += 1
     if not w:
         return targets
-    c, args = os.path.basename(w[0]), w[1:]
-    while c in WRAPPERS and args:                        # peel wrappers
-        c, args = os.path.basename(args[0]), args[1:]
-        while args and (args[0].startswith("-") or ("=" in args[0] and c == "env")):
-            args = args[1:]
+    c, args = peel(w)
     mode = "all"
     if c == "sed":
         if not re.search(r"(^|\s)(-[a-zA-Z]*i|--in-place)", " ".join(args)):   # only in-place
@@ -531,27 +621,11 @@ def judge_segment(seg):
         pass
     elif c in LAST_IS_TARGET:
         mode = "last"
-    elif c == "git":   # skip -C/-c and their values; the first bare word is the subcommand
-        n, skip, cdir, sub = [], None, "", ""
-        for a in args:
-            if skip:
-                if skip == "C":
-                    cdir = a
-                skip = None
-                continue
-            if a == "-C":
-                skip = "C"
-            elif a == "-c":
-                skip = "c"
-            elif a.startswith("-"):
-                pass
-            elif not sub:
-                sub = a
-            else:
-                n.append(a)
+    elif c == "git":
+        cdirs, sub, rest = git_parts(args)
         if sub not in ("mv", "rm"):
             return targets
-        args = [cdir + "/" + a if cdir and not a.startswith("/") else a for a in n]   # relative to -C
+        args = [os.path.join(*cdirs, a) for a in rest if not a.startswith("-")]   # relative to -C
     else:
         return targets
     files = [a for a in args if not a.startswith("-")]
@@ -561,14 +635,7 @@ def judge_segment(seg):
 
 
 def write_targets(cmd):
-    targets, seg = [], []
-    for wd in words(strip_heredocs(cmd)):
-        if wd == SEP:
-            targets += judge_segment(seg)
-            seg = []
-        else:
-            seg.append(wd)
-    targets += judge_segment(seg)
+    targets = [t for seg in segments(cmd) for t in judge_segment(seg)]
     # ponytail: an unexpanded $VAR or `…` is the shell's to resolve, not ours —
     # skipped; the read-only mounts are the guarantee
     return [t for t in targets if t and not t.startswith("-") and "$" not in t and "`" not in t]

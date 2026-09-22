@@ -260,6 +260,7 @@ expect deny:phase-gate "$PW" "$(tj "$T/backend/src/x.py")" "plan: code still den
 echo "# plan" > "$T/$PLAN"
 expect_exit 1 "review with uncommitted plan refused" "$H" phase review --plan "$PLAN" --ponytail-reviewed
 gitp add plans/2026-08-24-x.md && gitp commit -q -m "plan"
+expect allow "$PB" "$(tb "git -C $T/planning commit -m plan")" "plan: the plan itself may be committed on main"
 expect_exit 1 "review without ponytail declaration refused" "$H" phase review --plan "$PLAN"
 expect_exit 0 "review with committed plan + ponytail" "$H" phase review --plan "$PLAN" --ponytail-reviewed
 expect deny:phase-gate "$PW" "$(tj "$T/backend/src/x.py")" "review: code denied"
@@ -273,11 +274,35 @@ expect allow "$PW" "$(tb "echo x > backend/src/x.py")" "implement: redirect allo
 # a plan edited after approval drops the phase back
 echo "more" >> "$T/$PLAN"
 expect deny:phase-gate "$PW" "$(tj "$T/backend/src/x.py")" "stale: dirty plan after approval drops to review"
+expect allow "$PB" "$(tb "git -C $T/planning commit -m 'plan v2'")" "stale: the plan revision may be committed on main"
 gitp add plans/2026-08-24-x.md && gitp commit -q -m "plan v2"
 expect deny:phase-gate "$PW" "$(tj "$T/backend/src/x.py")" "stale: committed change after approval still drops to review"
 expect_exit 1 "re-declaring implement on a stale approval refused" "$H" phase implement
 "$H" approve "$PLAN" >/dev/null && "$H" phase implement >/dev/null
 expect allow "$PW" "$(tj "$T/backend/src/x.py")" "re-approved: code allowed again"
+
+echo "== plan-work-on-branch (phase implement: a branch, not main)"
+git -C "$T/backend" init -q -b main
+expect deny:plan-work-on-branch "$PB" "$(tb "git -C $T/backend commit -m x")" "implement: commit on main"
+expect allow "$PB" "$(tb "git -C $T/planning commit -m done && git -C $T/planning push")" "implement: the planning repo is in branch_exempt"
+expect deny:plan-work-on-branch "$PB" "$(tb "git -C $T/planning commit -m done && git -C $T/backend commit -m x")" "implement: the exemption does not cover the next repo"
+expect deny:plan-work-on-branch "$PB" "$(tb "git -C $T/backend/src commit -m x")" "implement: -C a subdirectory"
+expect deny:plan-work-on-branch "$PB" "$(tb "git -C $T/backend add src/x.py && git -C $T/backend commit -m x")" "implement: commit after add"
+expect deny:plan-work-on-branch "$PB" "$(tb "git -C $T/backend push")" "implement: bare push from main"
+expect deny:plan-work-on-branch "$PB" "$(tb "git -C $T/backend push origin HEAD")" "implement: push HEAD from main"
+expect allow "$PB" "$(tb "git -C $T/backend switch -c task/12-x")" "implement: branching off main"
+expect allow "$PB" "$(tb "git -C $T/backend status && git -C $T/backend log --oneline")" "implement: reads on main"
+git -C "$T/backend" symbolic-ref HEAD refs/heads/task/12-x
+expect allow "$PB" "$(tb "git -C $T/backend commit -m 'x on main'")" "implement: commit on a branch"
+expect allow "$PB" "$(tb "git -C $T/backend push -u origin task/12-x")" "implement: push the branch"
+expect allow "$PB" "$(tb "git -C $T/backend push 2>&1 | tail -1")" "implement: bare push from the branch"
+expect deny:plan-work-on-branch "$PB" "$(tb "git -C $T/backend push origin HEAD:main")" "bypass: push the branch onto main"
+expect deny:plan-work-on-branch "$PB" "$(tb "git -C $T/backend push origin +refs/heads/task/12-x:refs/heads/main")" "bypass: full forced refspec"
+expect deny:plan-work-on-branch "$PB" "$(tb "git -C $T/backend push origin main 2>&1")" "bypass: push local main from the branch"
+expect deny:plan-work-on-branch "$PB" "$(tb "git -C $T/backend push --all origin")" "bypass: --all includes main"
+expect deny:plan-work-on-branch "$PB" "$(tb "git -C $T/backend push origin :master")" "bypass: delete master"
+mkdir -p "$T/wt" "$T/backend/.git/worktrees/wt" && echo "gitdir: $T/backend/.git/worktrees/wt" >"$T/wt/.git" && echo "ref: refs/heads/main" >"$T/backend/.git/worktrees/wt/HEAD"
+expect deny:plan-work-on-branch "$PB" "$(tb "git -C $T/wt commit -m x")" "bypass: a worktree on main"
 # protected paths still win inside implement
 expect deny:protected-paths "$PW" "$(tj "$T/planning/.devcontainer/allowlist.txt")" "implement: policy file still read-only"
 # fail closed: unreadable run state = brainstorm
