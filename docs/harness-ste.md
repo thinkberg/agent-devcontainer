@@ -63,16 +63,16 @@ directories for these paths.
 
 | File | Function |
 |------|----------|
-| `rules.json` | The generic registry: 24 rules and the default work procedure (`phases`). The rules are about git, the publish step, secrets, the phases, the protected paths and the tickets. |
+| `rules.json` | The generic registry: 25 rules and the default work procedure (`phases`). The rules are about git, the publish step, secrets, the phases, the protected paths and the tickets. |
 | `harness.py` | The engine. One Python program, standard library only. It contains the hooks and the CLI. |
-| `harness.py hook pre-bash` | Runs before each `Bash` call. Applies the regex rules, the `-C /abs` builtin rule and the checker rules (`when` + `run`). The first rule that matches denies the call. |
+| `harness.py hook pre-bash` | Runs before each `Bash` call. Applies the regex rules, the `-C /abs` builtin rule, the branch builtin rule and the checker rules (`when` + `run`). The first rule that matches denies the call. |
 | `harness.py hook pre-write` | Runs before each `Edit`, `Write` or `Bash` call that writes a file. Applies the protected paths first. Then applies the phase gate and the approved scope. |
 | `harness.py hook post-write` | Runs after an edit. Runs the checkers with a `paths` entry that matches the edited file. Sends the findings to the agent. |
 | `harness.py hook stop-checks` | Runs when the session stops. Runs the `stop` checkers. A `block` rule blocks the session end one time in each session. A `warn` rule becomes a system message. |
 | `harness.py hook ticket-state` | Runs after a `Bash` call and at the session end. If the session changed tickets, the session cannot stop until `bin/check-tickets` ran without findings. |
 | `harness.py status` and the other verbs | The CLI. Refer to A.7. |
 | `checkers/` | Nine generic checkers. Refer to A.6. |
-| `tests/run.sh` | 223 tests on a test workspace. |
+| `tests/run.sh` | 243 tests on a test workspace. |
 
 ### A.4 The hook contract
 
@@ -211,7 +211,7 @@ overlay into the generic registry when a hook starts.
 | `rules` | The engine adds these rules to the registry. A rule with the same `id` as a generic rule replaces the generic rule. |
 | `disabled` | A list of generic rule ids. The engine removes these rules. |
 | `protected_paths` | The engine adds these paths to the list of protected paths. |
-| `phases` | The keys replace the default work procedure: `plan_glob`, `ticket_regex`, `allow_write`. |
+| `phases` | The keys replace the default work procedure: `plan_glob`, `ticket_regex`, `allow_write`, `branch_exempt`. |
 | `checkers/` | A directory adjacent to `rules.json`. A rule refers to a project checker as `{project}/checkers/<name>`. |
 
 A corrupt overlay causes all hooks to deny. A project without an overlay
@@ -404,6 +404,11 @@ harness stays the same.
 3. Set `phases.allow_write` for `brainstorm`, `plan` and `review`. Give
    the markdown that the agent can write before the approval. Example:
    `["planning/*.md", "*/docs/*.md"]`.
+
+4. Set `phases.branch_exempt` to the repositories where the agent can
+   commit on `main` in the phase `implement`. Give the planning
+   repository only. Example: `["planning"]`. The other repositories get
+   the work on a branch.
 
 Do not increase `allow_write.implement`. The approval scope controls the
 code writes.

@@ -6,6 +6,7 @@
   "phases": {
     "plan_glob": "*plans/*.md",
     "ticket_regex": "^[a-z]*#[0-9]+$",
+    "branch_exempt": [],
     "allow_write": { "brainstorm": ["*.md"], "plan": ["*.md"], "review": ["*.md"] }
   },
   "rules": [
