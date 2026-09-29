@@ -153,10 +153,29 @@ export HARNESS_RULES=$SAVED_RULES; rm -f "$NOPHASE"
 echo "== check-tickets-after-change (Stop hook with state)"
 stop_json=$(jq -n '{session_id:"t1",hook_event_name:"Stop"}')
 expect_exit 0 "clean session may stop" "$TS" stop <<<"$stop_json"
-"$TS" post <<<"$(bash_json "$P/bin/set-status review backend#12")" >/dev/null
+"$TS" post <<<"$(bash_json "$P/bin/close-ticket backend#12 --done x")" >/dev/null
 expect_exit 2 "dirty session is blocked" "$TS" stop <<<"$stop_json"
 "$TS" post <<<"$(bash_json "$P/bin/check-tickets")" >/dev/null
 expect_exit 0 "check-tickets clears it" "$TS" stop <<<"$stop_json"
+# what the line runs, not what it mentions (2026-09-29: 46 false dirties and 5 false clears in a week)
+"$TS" post <<<"$(bash_json "$P/bin/set-status review backend#12")" >/dev/null
+expect_exit 0 "a status move is not a change the check can catch (TICKETS.md)" "$TS" stop <<<"$stop_json"
+"$TS" post <<<"$(bash_json "sed -n 1,40p $P/bin/add-ticket; cat bin/close-ticket; grep -n plan $P/bin/update-estimates")" >/dev/null
+expect_exit 0 "reading the scripts is not a change" "$TS" stop <<<"$stop_json"
+"$TS" post <<<"$(bash_json "$P/bin/add-ticket --help 2>&1 | head -40")" >/dev/null
+expect_exit 0 "--help is not a change" "$TS" stop <<<"$stop_json"
+"$TS" post <<<"$(bash_json "cat > $P/plans/x.md <<'EOF'
+- then bin/add-ticket --title x
+EOF")" >/dev/null
+expect_exit 0 "a heredoc that mentions the script is not a change" "$TS" stop <<<"$stop_json"
+"$TS" post <<<"$(bash_json "cd $P && timeout 600 python3 bin/update-estimates backend#12=0.5 2>&1 | tail -3")" >/dev/null
+expect_exit 2 "cd, timeout, an interpreter: still the script" "$TS" stop <<<"$stop_json"
+"$TS" post <<<"$(bash_json "head -30 $P/bin/check-tickets")" >/dev/null
+expect_exit 2 "bypass: reading check-tickets does not clear" "$TS" stop <<<"$stop_json"
+"$TS" post <<<"$(bash_json "$P/bin/check-tickets; $P/bin/update-estimates backend#12=1")" >/dev/null
+expect_exit 2 "bypass: check then mutate ends dirty" "$TS" stop <<<"$stop_json"
+"$TS" post <<<"$(bash_json "out=\$($P/bin/add-ticket --title x --estimate 1) && $P/bin/check-tickets 2>&1 | tail -5")" >/dev/null
+expect_exit 0 "mutate in \$(…) then check ends clean" "$TS" stop <<<"$stop_json"
 "$TS" post <<<"$(bash_json "$P/bin/add-ticket --title x --estimate 1")" >/dev/null
 "$TS" stop <<<"$stop_json" >/dev/null 2>&1; "$TS" stop <<<"$stop_json" >/dev/null 2>&1; "$TS" stop <<<"$stop_json" >/dev/null 2>&1
 expect_exit 0 "ceiling: 4th stop passes with a systemMessage" "$TS" stop <<<"$stop_json"
@@ -167,7 +186,7 @@ expect deny:git-stage-explicit "$PB" "$(bash_json "git -C $P add -A")" "switch a
 touch "$HARNESS_OFF"
 expect allow "$PB" "$(bash_json "git -C $P add -A")" "off: pre-bash makes no decision"
 expect allow "$PW" "$(edit_json "$WS/www/static/legal/avv-de-v1.2.pdf")" "off: pre-write makes no decision"
-"$TS" post <<<"$(bash_json "$P/bin/set-status review backend#12")" >/dev/null
+"$TS" post <<<"$(bash_json "$P/bin/update-estimates backend#12=1")" >/dev/null
 expect_exit 0 "off: a dirty ticket session may stop" "$TS" stop <<<"$(jq -n '{session_id:"t1"}')"
 out=$("$H" hook stop-checks <<<'{"session_id":"t1"}' 2>&1); [ -z "$out" ] && pass=$((pass+1)) || { fail=$((fail+1)); echo "FAIL [off: stop-checks silent]"; }
 out=$(CLAUDE_PROJECT_DIR=$WS HARNESS_AGENT_DIR=$(mktemp -d) "$H" status | head -1); grep -q 'OFF' <<<"$out" && pass=$((pass+1)) || { fail=$((fail+1)); echo "FAIL [off: status says OFF] $out"; }

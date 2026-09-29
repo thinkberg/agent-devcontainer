@@ -109,9 +109,9 @@
     },
     {
       "id": "check-tickets-after-change", "class": "verify", "step": "close", "trigger": "stop",
-      "source": "operator's ticket workflow: after any ticket change run the consistency check and fix or flag what it reports",
+      "source": "operator's ticket workflow (TICKETS.md): after a ticket is created, closed, re-estimated or re-linked run the consistency check and fix or flag what it reports; a status move is not such a change",
       "text": "A session that changed tickets cannot end before the ticket check ran clean afterwards.",
-      "check": { "dirty_on": "\\bbin/(add-ticket|set-status|close-ticket|update-estimates)\\b", "clean_on": "\\bbin/check-tickets\\b", "max_blocks": 3 }
+      "check": { "dirty_on": "\\bbin/(add-ticket|close-ticket|update-estimates)\\b", "clean_on": "\\bbin/check-tickets\\b", "max_blocks": 3 }
     },
     {
       "id": "secrets-operator-only", "class": "enforce", "step": "ops", "trigger": "pre_bash",

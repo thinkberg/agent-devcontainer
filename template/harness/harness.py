@@ -556,6 +556,23 @@ def peel(w):
     return c, args
 
 
+SCRIPT_RUNNERS = WRAPPERS | {"python3", "python", "bash", "sh"}
+
+
+def command_word(seg):
+    """the program one simple command runs: sudo/env/nice/timeout and a
+    timeout duration, an interpreter, options and VAR=x assignments peeled.
+    "" for a --help call, which runs nothing. So `sed -n 1,40p bin/add-ticket`
+    is sed, and `timeout 600 python3 bin/add-ticket` is the script."""
+    if any(a in ("--help", "-h") for a in seg):
+        return ""
+    for a in seg:
+        if a.startswith("-") or re.fullmatch(r"[0-9]+[smhd]?|\w+=.*", a) or os.path.basename(a) in SCRIPT_RUNNERS:
+            continue
+        return a
+    return ""
+
+
 def git_parts(args):
     """git's arguments -> (the -C dirs, the subcommand, the subcommand's arguments)"""
     cdirs, sub, rest, skip = [], "", [], ""
@@ -857,7 +874,17 @@ def hook_ticket_state(mode):
         if inp.get("tool_name") != "Bash":
             return
         cmd = (inp.get("tool_input") or {}).get("command") or ""
-        if grep(c.get("clean_on", ""), cmd):
+        # what the line RUNS, segment by segment and in order: a read of the
+        # script (sed/cat/grep), its --help, a heredoc that mentions it are not
+        # a change; `check; mutate` ends dirty, `mutate && check` ends clean
+        last = ""
+        for seg in segments(cmd):
+            w = command_word(seg)
+            if w and grep(c.get("clean_on", ""), w):
+                last = "clean"
+            elif w and grep(c.get("dirty_on", ""), w):
+                last = "dirty"
+        if last == "clean":
             # Claude fires PostToolUse on success only; Codex also fires it after a
             # FAILED Bash command, with no exit code in the payload — so a failing
             # check-tickets clears the flag too. The reminder that you ran it holds
@@ -865,7 +892,7 @@ def hook_ticket_state(mode):
             for p in (dirty, blocks):
                 if os.path.exists(p):
                     os.unlink(p)
-        elif grep(c.get("dirty_on", ""), cmd):
+        elif last == "dirty":
             with open(dirty, "w", encoding="utf-8") as fh:
                 fh.write(utc_now() + "\n")
     elif mode == "stop":

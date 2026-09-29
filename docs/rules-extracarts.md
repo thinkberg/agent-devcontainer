@@ -120,7 +120,7 @@ the gate in plan P4.
 
 | Rule | Step | Checker | Runs at |
 |------|------|---------|---------|
-| `check-tickets-after-change` | close | `ticket-state.sh`: a session that ran `add-ticket`/`set-status`/`close-ticket`/`update-estimates` cannot stop until `check-tickets` ran clean | Stop |
+| `check-tickets-after-change` | close | `ticket-state.sh`: a session that ran `add-ticket`/`close-ticket`/`update-estimates` (what the line runs, not what it mentions; a status move is not a change the check can catch) cannot stop until `check-tickets` ran clean | Stop |
 | `spec-section-stability` | verify | numbered headings of a changed spec file must all survive; a deleted section keeps its header with the marker | PostToolUse on `extracarts-specs/*.md`; gate with `--base` |
 | `review-tick-has-date` | verify | a `[x]` added to `reviews/*.md` needs a `Review YYYY-MM-DD:` line in the same edit | PostToolUse on that path |
 | `hugo-warning-clean` | verify | renders to a temp dir; any WARN/deprecated/error line fails; no hugo = error (failure) | PostToolUse on `hugo.toml`, `layouts/`, `data/`, `i18n/` |
