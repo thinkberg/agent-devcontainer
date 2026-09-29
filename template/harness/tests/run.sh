@@ -245,6 +245,16 @@ expect deny:phase-gate "$PW" "$(tb "sed -i 's|a|b|' backend/src/x.py")" "brainst
 expect deny:phase-gate "$PW" "$(tb "sed -i -e 's/a/b/' backend/src/x.py")" "brainstorm: sed -i -e"
 expect deny:phase-gate "$PW" "$(tb "echo x >'backend/src/x.py'")" "brainstorm: quoted, attached redirect target"
 expect deny:phase-gate "$PW" "$(tb "cp /tmp/a.py \"backend/src/x.py\"")" "brainstorm: quoted cp target"
+# a cd inside the command moves the base of the relative targets after it (incident 2026-09-29)
+expect allow "$PW" "$(tb "cd /tmp/scratch && cat > body.md <<'EOF'
+x
+EOF")" "positive: cd to a scratch dir, then a relative write is outside the workspace"
+expect allow "$PW" "$(tb "D=/tmp/scratch; mkdir -p \"\$D\"; cd \"\$D\"; echo x > body.md")" "positive: cd \$VAR — unknown cwd, a relative target is the shell's"
+expect allow "$PW" "$(tb "cd $T/planning && cp docs/a.md notes.md")" "positive: cd into an allowed repo, relative write inside it"
+expect deny:phase-gate "$PW" "$(tb "cd backend && echo x > src/x.py")" "bypass: cd into code, relative write"
+expect deny:phase-gate "$PW" "$(tb "cd backend && cd src && echo x > x.py")" "bypass: two cds"
+expect deny:phase-gate "$PW" "$(tb "cd \$X && echo x > $T/backend/src/x.py")" "bypass: cd \$VAR then an absolute target still counts"
+expect deny:phase-gate "$PW" "$(tb "cd /tmp && echo x > $T/backend/src/x.py")" "bypass: cd out, absolute write back in"
 expect deny:phase-gate "$PW" "$(tb "cat <<EOF > backend/src/x.py
 print(1)
 EOF")" "bypass: heredoc in brainstorm"

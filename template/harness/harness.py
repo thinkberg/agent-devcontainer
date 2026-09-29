@@ -635,10 +635,32 @@ def judge_segment(seg):
 
 
 def write_targets(cmd):
-    targets = [t for seg in segments(cmd) for t in judge_segment(seg)]
-    # ponytail: an unexpanded $VAR or `…` is the shell's to resolve, not ours —
-    # skipped; the read-only mounts are the guarantee
-    return [t for t in targets if t and not t.startswith("-") and "$" not in t and "`" not in t]
+    """the write targets of a shell line. A `cd <dir>` earlier on the line
+    re-bases the relative targets after it: the hook's cwd never sees that cd
+    (incident 2026-09-29: `cd $SCRATCH && cat > body.md` judged as a write to
+    the workspace root).
+    ponytail: an unexpanded $VAR or `…` is the shell's to resolve, not ours —
+    such a target is skipped, and after a cd to one the relative targets are
+    skipped too (absolute ones still count); no pushd/popd, no ( subshell );
+    the read-only mounts are the guarantee"""
+    targets, base = [], ""          # base: "" = the hook's cwd, None = unknown
+    for seg in segments(cmd):
+        c, args = peel(seg) if seg else ("", [])
+        if c == "cd":
+            d = next((a for a in args if not a.startswith("-")), "")
+            if not d or "$" in d or "`" in d or d.startswith("~") or (base is None and not d.startswith("/")):
+                base = None
+            else:
+                base = d if d.startswith("/") else os.path.join(base, d)
+            continue
+        for t in judge_segment(seg):
+            if not t or t.startswith("-") or "$" in t or "`" in t:
+                continue
+            if t.startswith("/"):
+                targets.append(t)
+            elif base is not None:
+                targets.append(os.path.join(base, t))
+    return targets
 
 
 def hook_pre_write():
