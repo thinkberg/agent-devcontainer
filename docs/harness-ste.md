@@ -72,7 +72,7 @@ directories for these paths.
 | `harness.py hook ticket-state` | Runs after a `Bash` call and at the session end. If the session changed tickets, the session cannot stop until `bin/check-tickets` ran without findings. |
 | `harness.py status` and the other verbs | The CLI. Refer to A.7. |
 | `checkers/` | Nine generic checkers. Refer to A.6. |
-| `tests/run.sh` | 243 tests on a test workspace. |
+| `tests/run.sh` | 250 tests on a test workspace. |
 
 ### A.4 The hook contract
 
