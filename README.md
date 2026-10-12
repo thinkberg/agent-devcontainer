@@ -220,6 +220,7 @@ both agents.
 | `dcc db reset`       | Remove the database and its data.                                     |
 | `dcc allow <domain>` | Let egress through to one domain, until the next restart.             |
 | `dcc chrome on\|off\|status` | Open your Chrome (the Claude in Chrome extension) to the agent, until `dcc chrome off` or the next restart. Linux hosts only. |
+| `dcc watermarks on\|off\|status` | Start the watermarks-remover service for the agent, until `dcc watermarks off` or the next restart. |
 | `dcc fw`             | Run the firewall again, for example after CDN addresses change.       |
 | `dcc approve <plan>` | Approve a committed plan. The run can then go to phase implement. `--scope <glob>…` limits the writes. |
 | `dcc approve-release <repo> <pr>` | Approve the merge of a Release PR at the head of the PR. |
@@ -443,6 +444,61 @@ Facts:
 - `graft upgrade` does not operate: the installation is root-owned. To
   update Graft, change the version in `devcontainer.json` and run
   `dcc rebuild`.
+
+## Use watermarks-remover
+
+Off by default. This procedure installs
+[watermarks-remover](https://github.com/guillaumemeyer/watermarks-remover)
+in the image. The tool removes AI provenance marks from text and files:
+invisible Unicode, statistical text watermarks, and C2PA/EXIF/XMP metadata.
+The agent uses the skill `remove-ai-marks`. The skill calls an HTTP service
+in the container. You start the service when the agent needs it.
+
+1. Edit `.devcontainer/Dockerfile`. Uncomment the `watermarks-remover` block
+   in the project tools section.
+2. Run `dcc rebuild`.
+3. In the container, run this command one time:
+
+   ```bash
+   python3 /usr/local/lib/watermarks-remover/install_skill.py --skill remove-ai-marks --target claude-code
+   ```
+
+   The command copies the skill to `~/.claude/skills/remove-ai-marks`. The
+   container keeps `~/.claude` in `<project>/.claude-devcontainer`, so the
+   skill survives `dcc rebuild`.
+4. When the agent needs the service, run `dcc watermarks on` on the host.
+   Start `claude` and use `/remove-ai-marks`.
+5. Run `dcc watermarks off` when the task is complete.
+
+Facts:
+
+- The service is off at each container start. `dcc watermarks status` shows
+  the state. Without the service, the skill stops with a message. It does
+  not clean files itself.
+- The service listens on loopback in the container. The firewall permits
+  loopback. No domain is necessary in `allowlist.txt`.
+- The switch is a convenience, not a boundary. The checkout is readable, so
+  the agent can also start the service or run the scripts in it. Your Chrome
+  (above) has a hard gate; this tool has none.
+- The skill does the statistical rewrite itself, with the agent's model. The
+  rewrite backend of the service (`WATERMARKS_REWRITE_*`) stays off. Do not
+  put an API key for it in the container.
+- The block installs `qpdf` and `exiftool`, for PDF and image metadata.
+  `ghostscript` (PDF image streams) and `ffmpeg` (audio, video) go on the
+  same apt line. `c2patool` is a GitHub release binary; see the upstream
+  `service/Dockerfile`. `GET /capabilities` on the service reports the tools
+  that are present.
+- Use the installer from the checkout, not the upstream plugin marketplace.
+  The marketplace follows upstream `main`, not the pinned version, so the
+  skill and the service can disagree. The PostToolUse hook of the plugin
+  does not operate: the managed settings permit only the harness hooks.
+- The second skill, `clean-user-facing-text`, needs no service. Install it
+  with the same command and `--skill clean-user-facing-text`.
+- Codex: copy `skills/remove-ai-marks/` from the checkout to
+  `~/.agents/skills/` in the container. `~/.agents` is not a mount: repeat
+  this after `dcc rebuild`.
+- To update the tool, change `WATERMARKS_REMOVER_VERSION` in the Dockerfile
+  and run `dcc rebuild`.
 
 ## Control egress
 

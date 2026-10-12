@@ -26,6 +26,10 @@
 #                       your Chrome for the agent (claude --chrome): on = link
 #                       the extension's socket into the container, off = unlink
 #                       and drop the connections inside (dies on restart)
+#   dcc watermarks [on|off|status]
+#                       the watermarks-remover service for the remove-ai-marks
+#                       skill: on = start it on loopback inside, off = stop it
+#                       (dies on restart; Dockerfile opt-in)
 #   dcc approve <plan> [--scope <glob>…]
 #                       approve a committed plan: lets the run enter phase
 #                       implement, optionally limited to a write scope
@@ -246,6 +250,30 @@ case "$1" in
                 [ -n "$on" ] || echo "chrome off" ;;
             *) echo "usage: dcc chrome [on|off|status]" >&2; exit 1 ;;
         esac ;;
+    # the watermarks-remover service (Dockerfile opt-in): a python process on
+    # loopback inside, run as vscode while the user needs it; the
+    # remove-ai-marks skill talks to it with curl and stops when it is down.
+    # Off at every container start, like an egress grant.
+    watermarks)
+        wmr=/usr/local/lib/watermarks-remover
+        health() { running "$CTR" && $ENGINE exec -u vscode "$CTR" curl -sf http://127.0.0.1:8765/health >/dev/null 2>&1; }
+        case "${2:-status}" in
+            on)
+                running "$CTR" || { echo "ERROR: $CTR is not running — dcc up first" >&2; exit 1; }
+                $ENGINE exec "$CTR" test -f "$wmr/service/scripts/server.py" \
+                    || { echo "ERROR: $CTR has no watermarks-remover — uncomment its block in .devcontainer/Dockerfile, then dcc rebuild (README 'Use watermarks-remover')" >&2; exit 1; }
+                # -w: server.py reads config/clean_strategy.json relative to the cwd
+                health || $ENGINE exec -d -u vscode -w "$wmr" "$CTR" sh -c "exec python3 $wmr/service/scripts/server.py >/tmp/watermarks-remover.log 2>&1"
+                for _ in $(seq 1 20); do health && break; sleep 0.3; done
+                health || { echo "ERROR: the service did not start — inside: cat /tmp/watermarks-remover.log" >&2; exit 1; }
+                echo "watermarks ON — http://127.0.0.1:8765 inside, skill /remove-ai-marks; until 'dcc watermarks off' or the next container start" ;;
+            off)
+                ! running "$CTR" || $ENGINE exec -u vscode "$CTR" pkill -f "$wmr/service/scripts/server.py" || true
+                echo "watermarks off" ;;
+            status)
+                if health; then echo "watermarks ON"; else echo "watermarks off"; fi ;;
+            *) echo "usage: dcc watermarks [on|off|status]" >&2; exit 1 ;;
+        esac ;;
     # approvals are root-only inside: the token lands in /run/harness/approvals,
     # which vscode reads and cannot write. Root in the userns is not the owner
     # of the workspace files, so git needs safe.directory for the blob hash.
@@ -288,5 +316,5 @@ case "$1" in
         running "$CTR" || up
         exec_in "$@"
         ;;
-    *) echo "usage: dcc [attach [cmd…]|up [cmd…]|rebuild|update|down|db reset|allow <domain>|chrome [on|off|status]|approve <plan> [--scope g…]|approve-release <repo> <pr>|check|harness [on|off|status]|fw|root|init <name>|seed [project]]" >&2; exit 1 ;;
+    *) echo "usage: dcc [attach [cmd…]|up [cmd…]|rebuild|update|down|db reset|allow <domain>|chrome [on|off|status]|watermarks [on|off|status]|approve <plan> [--scope g…]|approve-release <repo> <pr>|check|harness [on|off|status]|fw|root|init <name>|seed [project]]" >&2; exit 1 ;;
 esac
