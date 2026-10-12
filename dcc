@@ -263,7 +263,7 @@ case "$1" in
                 $ENGINE exec "$CTR" test -f "$wmr/service/scripts/server.py" \
                     || { echo "ERROR: $CTR has no watermarks-remover — uncomment its block in .devcontainer/Dockerfile, then dcc rebuild (README 'Use watermarks-remover')" >&2; exit 1; }
                 # -w: server.py reads config/clean_strategy.json relative to the cwd
-                health || $ENGINE exec -d -u vscode -w "$wmr" "$CTR" sh -c "exec python3 $wmr/service/scripts/server.py >/tmp/watermarks-remover.log 2>&1"
+                health || $ENGINE exec -d -u vscode -w "$wmr" "$CTR" sh -c "exec python3 $wmr/service/scripts/server.py >/tmp/watermarks-remover.log 2>&1" >/dev/null   # -d prints the exec session id
                 for _ in $(seq 1 20); do health && break; sleep 0.3; done
                 health || { echo "ERROR: the service did not start — inside: cat /tmp/watermarks-remover.log" >&2; exit 1; }
                 echo "watermarks ON — http://127.0.0.1:8765 inside, skill /remove-ai-marks; until 'dcc watermarks off' or the next container start" ;;

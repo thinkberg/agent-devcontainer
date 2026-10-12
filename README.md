@@ -494,9 +494,16 @@ Facts:
   does not operate: the managed settings permit only the harness hooks.
 - The second skill, `clean-user-facing-text`, needs no service. Install it
   with the same command and `--skill clean-user-facing-text`.
-- Codex: copy `skills/remove-ai-marks/` from the checkout to
-  `~/.agents/skills/` in the container. `~/.agents` is not a mount: repeat
-  this after `dcc rebuild`.
+- Codex: in the container, copy the skill from the checkout one time:
+
+  ```bash
+  cp -r /usr/local/lib/watermarks-remover/skills/remove-ai-marks ~/.codex/skills/
+  ```
+
+  Codex loads skills from `~/.codex/skills`. The container keeps `~/.codex`
+  in `<project>/.codex-devcontainer`, so the skill survives `dcc rebuild`.
+  `/skills` in Codex lists it. Codex calls the same service: run
+  `dcc watermarks on` first.
 - To update the tool, change `WATERMARKS_REMOVER_VERSION` in the Dockerfile
   and run `dcc rebuild`.
 
