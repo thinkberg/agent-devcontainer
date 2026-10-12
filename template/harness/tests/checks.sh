@@ -57,6 +57,26 @@ printf "const b = await puppeteer.launch();\n" >"$E"
 out=$("$POST" <<<"$(wj "$E")" 2>&1); rc=$?; [ $rc -eq 2 ] && grep -q 'chrome-no-sandbox' <<<"$out" && pass=$((pass+1)) || { fail=$((fail+1)); echo "FAIL [post-write: chrome launch without --no-sandbox reported] rc=$rc"; }
 rm -f "$E" "$A/shot.py"
 
+echo "== watermarks"
+WM=$(mktemp -d -p "$HOME/.cache"); mkdir -p "$WM/service/scripts"
+cat >"$WM/service/scripts/hook_written_file.py" <<'PY'
+# a stand-in for the upstream hook: a mark is U+200B in the file; check mode = findings on stderr + exit 2, clean mode = JSON + exit 0
+import json, os, sys
+p = json.load(sys.stdin)["tool_input"]["file_path"]
+if "\u200b" not in open(p, encoding="utf-8").read(): sys.exit(0)
+if os.environ.get("WATERMARKS_HOOK_MODE") == "clean":
+    print(json.dumps({"systemMessage": "cleaned", "additionalContext": "re-read the file"})); sys.exit(0)
+print("found U+200B", file=sys.stderr); sys.exit(2)
+PY
+printf 'plain\n' >"$A/plain.md"; printf 'hidden\xe2\x80\x8b mark\n' >"$A/marked.md"
+expect_rc 0 "no checkout in the image = nothing to say" env WATERMARKS_REMOVER_DIR=/nonexistent "$CK/watermarks" "$A/marked.md"
+export WATERMARKS_REMOVER_DIR=$WM
+expect_rc 0 "a file without marks passes" "$CK/watermarks" "$A/plain.md"
+out=$("$CK/watermarks" "$A/marked.md"); rc=$?; [ $rc -eq 1 ] && grep -q 'U+200B' <<<"$out" && pass=$((pass+1)) || { fail=$((fail+1)); echo "FAIL [marks reported with the findings] rc=$rc"; }
+out=$(WATERMARKS_HOOK_MODE=clean "$CK/watermarks" "$A/marked.md"); rc=$?; [ $rc -eq 1 ] && grep -q 're-read' <<<"$out" && pass=$((pass+1)) || { fail=$((fail+1)); echo "FAIL [clean mode tells the agent to read again] rc=$rc"; }
+out=$("$POST" <<<"$(wj "$A/marked.md")" 2>&1); rc=$?; [ $rc -eq 2 ] && grep -q 'harness \[watermarks\]' <<<"$out" && pass=$((pass+1)) || { fail=$((fail+1)); echo "FAIL [post-write: marks reported] rc=$rc"; }
+unset WATERMARKS_REMOVER_DIR; rm -rf "$WM" "$A/plain.md" "$A/marked.md"
+
 echo "== hugo-warning-clean"
 FB=$(mktemp -d -p "$HOME/.cache"); export PATH=$FB:$PATH
 expect_rc 3 "no hugo = error (fail closed in the dispatcher)" env PATH=/usr/bin:/bin "$CK/hugo-warning-clean" "$W/www"
