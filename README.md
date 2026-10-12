@@ -451,13 +451,19 @@ Off by default. This procedure installs
 [watermarks-remover](https://github.com/guillaumemeyer/watermarks-remover)
 in the image. The tool removes AI provenance marks from text and files:
 invisible Unicode, statistical text watermarks, and C2PA/EXIF/XMP metadata.
-The agent uses the skill `remove-ai-marks`. The skill calls an HTTP service
-in the container. You start the service when the agent needs it.
+It has two parts:
+
+- A hook. After each file the agent writes, the harness runs the tool's
+  PostToolUse hook (rule `watermarks`), for Claude and for Codex. The hook
+  reports the marks it finds to the agent. It needs no service.
+- A skill, `remove-ai-marks`, for files the agent did not write and for the
+  statistical rewrite. The skill calls an HTTP service in the container. You
+  start the service when the agent needs it.
 
 1. Edit `.devcontainer/Dockerfile`. Uncomment the `watermarks-remover` block
    in the project tools section.
-2. Run `dcc rebuild`.
-3. In the container, run this command one time:
+2. Run `dcc rebuild`. The hook is active now.
+3. For the skill, run this command one time in the container:
 
    ```bash
    python3 /usr/local/lib/watermarks-remover/install_skill.py --skill remove-ai-marks --target claude-code
@@ -490,8 +496,15 @@ Facts:
   that are present.
 - Use the installer from the checkout, not the upstream plugin marketplace.
   The marketplace follows upstream `main`, not the pinned version, so the
-  skill and the service can disagree. The PostToolUse hook of the plugin
-  does not operate: the managed settings permit only the harness hooks.
+  skill and the service can disagree. The plugin's own hook registration
+  does not operate either: the managed settings permit only the harness
+  hooks, and the harness runs the hook (`checkers/watermarks`).
+- The hook reports by default (`WATERMARKS_HOOK_MODE=check`). Set
+  `WATERMARKS_HOOK_MODE` to `clean` in `containerEnv` of
+  `.devcontainer/devcontainer.json` and the hook strips the marks in place
+  after each write; it then tells the agent to read the file again. A
+  project that does not want the hook lists `watermarks` in `disabled` of
+  its rule overlay.
 - The second skill, `clean-user-facing-text`, needs no service. Install it
   with the same command and `--skill clean-user-facing-text`.
 - Codex: in the container, copy the skill from the checkout one time:

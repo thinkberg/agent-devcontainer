@@ -1,0 +1,21 @@
+#!/bin/bash
+# watermarks <file>
+# The PostToolUse hook of watermarks-remover (README 'Use watermarks-remover'),
+# run by the harness after every file write so it fires for Claude and Codex
+# alike: the hook reads a Claude-shaped payload that names one file, and the
+# dispatcher hands one file per call (Codex's apply_patch already split).
+# Quiet while the Dockerfile block is commented out. WATERMARKS_HOOK_MODE:
+# check (default) reports the marks and the strip command; clean strips them
+# in place and says so — the agent must read the file again.
+set -uo pipefail
+f=${1:?usage: watermarks <file>}
+hook=${WATERMARKS_REMOVER_DIR:-/usr/local/lib/watermarks-remover}/service/scripts/hook_written_file.py
+[ -f "$hook" ] && [ -f "$f" ] || exit 0
+err=$(mktemp); trap 'rm -f "$err"' EXIT
+out=$(jq -cn --arg f "$f" '{tool_name:"Write",tool_input:{file_path:$f}}' | python3 "$hook" 2>"$err"); rc=$?
+case $rc in
+    0) [ -n "$out" ] || exit 0                                                     # no marks, or clean mode changed nothing
+       jq -r '.additionalContext // .systemMessage' <<<"$out" 2>/dev/null || echo "$out"; exit 1 ;;   # clean mode rewrote the file
+    2) cat "$err"; exit 1 ;;                                                       # marks found: the findings, the strip command
+    *) cat "$err"; exit 3 ;;                                                       # the hook itself failed
+esac
