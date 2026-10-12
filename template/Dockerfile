@@ -32,6 +32,21 @@ RUN curl -fsSL https://chatgpt.com/codex/install.sh \
 # RUN curl -fsSL -o /tmp/chrome.deb https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb \
 #     && apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends /tmp/chrome.deb fonts-noto-cjk \
 #     && rm -rf /tmp/chrome.deb /var/lib/apt/lists/* /etc/apt/sources.list.d/google-chrome* /etc/cron.daily/google-chrome
+# watermarks-remover (README 'Use watermarks-remover'): the HTTP service the
+# remove-ai-marks skill calls (python3 stdlib, in the image already), plus the
+# tools it shells out to — qpdf and exiftool for PDF/image metadata. Pinned
+# release, root-owned; switched on per task with `dcc watermarks on`. Add
+# ghostscript (PDF image streams) and ffmpeg (audio/video) to the apt line
+# the same way; c2patool is a GitHub release binary, see the upstream
+# service/Dockerfile. GET /capabilities on the running service lists what is
+# present:
+# ARG WATERMARKS_REMOVER_VERSION=0.7.0
+# RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+#         qpdf libimage-exiftool-perl \
+#     && rm -rf /var/lib/apt/lists/* \
+#     && curl -fsSL "https://github.com/guillaumemeyer/watermarks-remover/archive/refs/tags/v${WATERMARKS_REMOVER_VERSION}.tar.gz" \
+#         | tar -xz -C /usr/local/lib \
+#     && mv "/usr/local/lib/watermarks-remover-${WATERMARKS_REMOVER_VERSION}" /usr/local/lib/watermarks-remover
 # ----------------------------------------------------------------------------
 
 # ---- safety harness -------------------------------------------------------
