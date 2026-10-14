@@ -22,4 +22,12 @@ chown vscode: /run/harness/agent
 chmod 755 /run/harness /run/harness/approvals
 
 touch /run/devcontainer-entry-done   # setup-workspace.sh waits for this
+
+# the listed names again, every 20 s (one CDN TTL), as root in the
+# background: a CDN host answers with other addresses as its map changes,
+# and a set filled only at start misses them. Only the allowlist and the
+# `dcc allow` grants, nothing the agent looks up — see 'refresh' in the
+# firewall script. A child of this pid; it ends with the container.
+( while sleep 20; do /usr/local/bin/devcontainer-firewall.sh refresh || true; done ) &
+
 exec sleep infinity
