@@ -57,7 +57,8 @@ if [ "${1:-}" = init ]; then
     [ ! -e .devcontainer ] || { echo "ERROR: .devcontainer already exists here" >&2; exit 1; }
     cp -r "$TEMPLATE" .devcontainer
     # perl -pi, not sed -i: BSD sed (macOS) wants -i '' and GNU sed wants -i
-    grep -rl PROJECTNAME .devcontainer | xargs -r perl -pi -e "s/PROJECTNAME/$name/g"
+    # not update: its own code names the placeholder (its fetch() skips itself too)
+    grep -rl PROJECTNAME .devcontainer | grep -v '/update$' | xargs -r perl -pi -e "s/PROJECTNAME/$name/g"
     # the sidecar subnet must be unique per project on this host: the first
     # 172.30.N.0/24 no podman network uses (dcc.conf SUBNET and the
     # DEVCONTAINER_SUBNET the firewall reads must agree, so both files)
