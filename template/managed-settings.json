@@ -51,7 +51,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "input=$(cat); f=$(printf \"%s\" \"$input\" | jq -r \".tool_input.file_path // empty\"); root=\"${CLAUDE_PROJECT_DIR:-$(printf \"%s\" \"$input\" | jq -r \".cwd // empty\")}\"; if [ -z \"$f\" ] || [ -z \"$root\" ]; then exit 0; fi; rf=$(realpath -m -- \"$f\" 2>/dev/null || printf \"%s\" \"$f\"); rr=$(realpath -m -- \"$root\" 2>/dev/null || printf \"%s\" \"$root\"); case \"$rf\" in \"$rr\"|\"$rr\"/*) exit 0 ;; *) printf \"{\\\"hookSpecificOutput\\\":{\\\"hookEventName\\\":\\\"PreToolUse\\\",\\\"permissionDecision\\\":\\\"ask\\\",\\\"permissionDecisionReason\\\":\\\"Read outside the project directory\\\"}}\" ;; esac",
+            "command": "input=$(cat); f=$(printf \"%s\" \"$input\" | jq -r \".tool_input.file_path // empty\"); root=\"${CLAUDE_PROJECT_DIR:-$(printf \"%s\" \"$input\" | jq -r \".cwd // empty\")}\"; if [ -z \"$f\" ] || [ -z \"$root\" ]; then exit 0; fi; rf=$(realpath -m -- \"$f\" 2>/dev/null || printf \"%s\" \"$f\"); rr=$(realpath -m -- \"$root\" 2>/dev/null || printf \"%s\" \"$root\"); case \"$rf\" in \"$rr\"|\"$rr\"/*|\"${CLAUDE_CONFIG_DIR:-$HOME/.claude}\"/projects/*|/tmp/*) exit 0 ;; *) printf \"{\\\"hookSpecificOutput\\\":{\\\"hookEventName\\\":\\\"PreToolUse\\\",\\\"permissionDecision\\\":\\\"ask\\\",\\\"permissionDecisionReason\\\":\\\"Read outside the project directory\\\"}}\" ;; esac",
             "timeout": 10
           }
         ]
