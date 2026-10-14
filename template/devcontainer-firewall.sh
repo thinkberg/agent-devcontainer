@@ -19,9 +19,25 @@ set -euo pipefail
 LIST=/etc/devcontainer-allowlist.txt
 SET=allowed
 STAGE=allowed-stage
+GRANTS=/run/firewall-grants.txt   # the `dcc allow` domains (cc-allow.sh); a full run clears them with the set
 
 note() { echo "firewall: $*" >&2; }
 fail() { note "FAIL: $*"; exit 1; }
+
+# `devcontainer-firewall.sh refresh` — the loop entry.sh runs every 20 s:
+# resolve the listed names (and the grants) again and add what is new. A
+# CDN-fronted host (Akamai, CloudFront) answers with other addresses as its
+# map changes; a set filled only at start misses them minutes later. Only
+# these names are resolved, never what the agent looks up, so the agent
+# cannot steer the set; nothing is removed — a full run rebuilds the set.
+if [ "${1:-}" = refresh ]; then
+    { cat "$LIST"; cat "$GRANTS" 2>/dev/null || true; } | sed 's/#.*//' | awk 'NF {print $1}' | while read -r domain; do
+        for a in $(getent ahostsv4 "$domain" 2>/dev/null | awk '{print $1}' | sort -u); do
+            ipset add "$SET" "$a" -exist
+        done
+    done
+    exit 0
+fi
 
 # ---- collect destinations into a staging set, swap atomically ------------
 # Resolution happens BEFORE any rule change: on a re-run the previous
@@ -57,6 +73,7 @@ entries=$(ipset save "$STAGE" | grep -c '^add ') || :
 
 ipset swap "$STAGE" "$SET"
 ipset destroy "$STAGE"
+rm -f "$GRANTS"   # the grants went with the old set
 
 # ---- rules: default-DROP both ways, answers and DNS excepted -------------
 iptables -F OUTPUT

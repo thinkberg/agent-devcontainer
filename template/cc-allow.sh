@@ -12,3 +12,6 @@ for ip in $ips; do
     ipset add allowed "$ip" -exist
     echo "allowed $domain -> $ip (until container restart)"
 done
+# the firewall's refresh loop resolves the grants again too (a CDN host
+# answers with other addresses later); a full firewall run drops the file
+echo "$domain" >> /run/firewall-grants.txt

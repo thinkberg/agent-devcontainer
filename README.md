@@ -221,7 +221,7 @@ both agents.
 | `dcc allow <domain>` | Let egress through to one domain, until the next restart.             |
 | `dcc chrome on\|off\|status` | Open your Chrome (the Claude in Chrome extension) to the agent, until `dcc chrome off` or the next restart. Linux hosts only. |
 | `dcc watermarks on\|off\|status` | Start the watermarks-remover service for the agent, until `dcc watermarks off` or the next restart. |
-| `dcc fw`             | Run the firewall again, for example after CDN addresses change.       |
+| `dcc fw`             | Run the firewall again: resolve the allowlist again, remove the `dcc allow` grants. |
 | `dcc approve <plan>` | Approve a committed plan. The run can then go to phase implement. `--scope <glob>…` limits the writes. |
 | `dcc approve-release <repo> <pr>` | Approve the merge of a Release PR at the head of the PR. |
 | `dcc check`          | Run the harness gate checks in the container.                         |
@@ -526,6 +526,11 @@ Facts:
   `dcc rebuild`.
 - For one session: run `dcc allow <domain>` on the host. The grant stops
   when the container restarts.
+- The firewall resolves the list at each start, and again every 20 seconds
+  (a loop under pid 1). A host behind a CDN that answers with other
+  addresses as its map changes (Akamai, CloudFront) is therefore reachable
+  without `dcc fw`. Only the listed domains and the `dcc allow` grants are
+  resolved, never the names the agent looks up. The loop removes nothing.
 - Do not put production hosts, cloud APIs and domains of that type on
   the list. For these domains, the agent must tell you each time. You
   then run `dcc allow`.
