@@ -10,7 +10,8 @@
 #                      instead of the shell (e.g. dcc attach claude); tmux
 #                      lives on the host — run dcc inside your own setup
 #   dcc up [cmd…]       build/start the container (+ database sidecar if
-#                      configured), optionally run cmd afterwards
+#                      configured, + the dcc.conf DEVICES that are present),
+#                      optionally run cmd afterwards
 #   dcc rebuild         recreate the dev container (new image, fresh firewall)
 #                      and prune the images earlier rebuilds left untagged;
 #                      the database and its data are untouched
@@ -97,6 +98,7 @@ SUBNET=172.30.0.0/24
 DB_IMAGE=
 DB_PORT=5433
 DB_ENV="POSTGRES_USER=postgres POSTGRES_PASSWORD=postgres"
+DEVICES=
 [ ! -f "$ROOT/.devcontainer/dcc.conf" ] || . "$ROOT/.devcontainer/dcc.conf"
 CTR=$NAME-dev
 DB=$NAME-db
@@ -150,9 +152,23 @@ up() {
     mkdir -p -m 700 "$CHROME_DIR" && [ -O "$CHROME_DIR" ] \
         || { echo "ERROR: $CHROME_DIR is not yours" >&2; exit 1; }
     running "$CTR" || rm -f "$CHROME_DIR"/*.sock
+    # optional device nodes (dcc.conf DEVICES): podman stores mount sources
+    # at creation and refuses a start when one is missing, so dcc binds the
+    # nodes present now and recreates the container when that set changed
+    # since it was created (camera unplugged, or plugged in later)
+    local d mounted want= have= mounts=()
+    mounted=$($ENGINE inspect "$CTR" -f '{{range .Mounts}} {{.Source}}{{end}} ' 2>/dev/null || echo none)
+    for d in $DEVICES; do
+        [ ! -e "$d" ] || { want="$want $d"; mounts+=(--mount "type=bind,source=$d,target=$d"); }
+        case "$mounted" in *" $d "*) have="$have $d" ;; esac
+    done
+    if [ "$mounted" != none ] && [ "$want" != "$have" ] && [ "${1:-}" != --remove-existing-container ]; then
+        echo "devices changed:${have:- none} ->${want:- none}; recreating $CTR" >&2
+        set -- --remove-existing-container "$@"
+    fi
     ensure_db
     npx --yes @devcontainers/cli up --docker-path "$ENGINE" \
-        --workspace-folder "$ROOT" "$@"
+        --workspace-folder "$ROOT" ${mounts[@]+"${mounts[@]}"} "$@"
 }
 
 exec_in() {   # run a command (default: interactive shell) inside as vscode

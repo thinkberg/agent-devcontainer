@@ -82,7 +82,7 @@ Step 2: Edit the copied files. The files are part of your project:
 
 | File | Change |
 |------|--------|
-| `.devcontainer/dcc.conf` | The subnet, and the database settings (see below). |
+| `.devcontainer/dcc.conf` | The subnet, the host devices, and the database settings (see below). |
 | `.devcontainer/devcontainer.json` | The secret masks (see below), other features, and environment variables. |
 | `.devcontainer/Dockerfile` | Other tools, in the marked section. |
 | `.devcontainer/allowlist.txt` | The domains that the agent can connect to. |
@@ -212,7 +212,7 @@ both agents.
 |----------------------|-----------------------------------------------------------------------|
 | `dcc`                | Start the container if necessary. Open a shell in the container.      |
 | `dcc attach <cmd>`   | Run `<cmd>` in the container, not a shell. Example: `dcc attach claude` or `dcc attach codex`. |
-| `dcc up <cmd>`       | Start the container and the database, then run `<cmd>`. Use this in scripts. |
+| `dcc up <cmd>`       | Start the container and the database, then run `<cmd>`. Use this in scripts. Binds the `DEVICES` that are present, recreates the container when that set changed. |
 | `dcc down`           | Stop the container and the database. All data stays.                  |
 | `dcc rebuild`        | Build a new image and container, prune the images earlier rebuilds left behind. The database does not change. |
 | `dcc update`         | Update `.devcontainer` from the template on GitHub, keep the configuration. Then `dcc rebuild`. |
@@ -295,6 +295,32 @@ Example init script for test suites:
 CREATE ROLE test LOGIN SUPERUSER PASSWORD 'test';
 CREATE DATABASE test OWNER test;
 ```
+
+## Use host devices
+
+A device node that is not always there (a camera, a probe) goes in
+`.devcontainer/dcc.conf`, not in the `mounts` of `devcontainer.json`:
+
+```bash
+DEVICES="/dev/video0 /dev/video1"
+```
+
+Facts:
+
+- `dcc up` bind-mounts each listed node that exists, at the same path in
+  the container. A node that is absent on the host is absent in the
+  container.
+- Podman stores the mount sources when it creates the container and does
+  not start the container when one is missing. `dcc up` recreates the
+  container when the set of present nodes changed since it was created,
+  and says so. A recreate runs the setup scripts again and empties the
+  container's `/tmp`.
+- A file bind keeps the old node. After a replug, run `dcc down` then
+  `dcc up`.
+- A source that is always there, such as the directory `/dev/bus/usb`,
+  stays in `devcontainer.json`.
+- Rootless podman applies no device cgroup. The file modes and ACLs of the
+  host decide what the agent can open.
 
 <!-- ste: procedure -->
 
