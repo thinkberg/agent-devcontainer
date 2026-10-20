@@ -1,5 +1,5 @@
-// Restricted dev container for Claude Code and Codex (extracted from the
-// extracarts devcontainer). The workspace is mounted at the SAME path as on
+// Restricted dev container for Claude Code and Codex. The workspace is
+// mounted at the SAME path as on
 // the host so absolute paths (venv shebangs, IDE references, logs) agree on
 // both sides. Secrets are masked by mounts below — the `mounts` array IS the
 // masked-file inventory.

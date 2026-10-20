@@ -4,8 +4,7 @@
 # (which updates Portainer directly) it must be re-pinned, or the next
 # playbook run rolls production back. Offline proxy: each pinned tag
 # must be the latest v* tag of its code repo (rules.json check.repos maps
-# the yml key to the sibling repo). The live comparison is
-# extracarts-deployment/bin/stack-status.py.
+# the yml key to the sibling repo).
 set -uo pipefail
 HERE=$(dirname "$(readlink -f "${BASH_SOURCE[0]}")"); RULES=${HARNESS_RULES:-$HERE/../rules.json}
 repo=${1:?usage: versions-repin <deployment-repo>}; yml=$repo/ansible/versions.yml

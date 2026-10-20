@@ -15,9 +15,8 @@ The document has two types of sections:
   different sections.
 
 Applicable documents: the source README
-[`template/harness/README.md`](../template/harness/README.md), the
-harness plan [`safety-harness.md`](safety-harness.md), and a full
-project example [`rules-extracarts.md`](rules-extracarts.md).
+[`template/harness/README.md`](../template/harness/README.md) and the
+harness plan [`safety-harness.md`](safety-harness.md).
 
 ---
 
@@ -225,7 +224,6 @@ with the rule `id`.
 The hooks are not the guarantee. The guarantee of a rule is the control
 at the step that does, publishes or accepts the change. Examples: the firewall, the mount with write protection, the missing
 credential, the token directory of root, the CI gate.
-`rules-extracarts.md` gives the control for each rule.
 
 The harness does not guarantee that the agent knows a rule. A rule
 without a mechanical test is an approval point for a person, or a risk

@@ -910,7 +910,7 @@ def hook_ticket_state(mode):
             with open(dirty, encoding="utf-8") as fh:
                 since = fh.read().rstrip("\n")
             print("harness [check-tickets-after-change]: tickets changed in this session (since %s) and "
-                  "bin/check-tickets has not run clean since. Run extracarts-planning/bin/check-tickets, "
+                  "bin/check-tickets has not run clean since. Run the planning repo's bin/check-tickets, "
                   "fix or flag its findings, then finish. (%d/%d)" % (since, n, mx), file=sys.stderr)
             sys.exit(2)
         print(json.dumps({"systemMessage": "harness [check-tickets-after-change]: stop allowed after %d blocks — "

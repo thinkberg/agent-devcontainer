@@ -149,7 +149,7 @@ Optional: copy the agent settings from a project that exists. Give the
 name of a started project, or its directory:
 
 ```bash
-dcc seed extracarts
+dcc seed myproject
 ```
 
 The command copies `statusline-command.sh`, `settings.json`, the Codex
@@ -645,8 +645,7 @@ because Codex reports no exit status to the hook. The limits are in
 
 Full description and procedures: [docs/harness-ste.md](docs/harness-ste.md).
 The plan and the limits:
-[docs/safety-harness.md](docs/safety-harness.md). A complete worked
-example: [docs/rules-extracarts.md](docs/rules-extracarts.md). The
+[docs/safety-harness.md](docs/safety-harness.md). The
 engine: [template/harness/README.md](template/harness/README.md).
 
 ## Sources

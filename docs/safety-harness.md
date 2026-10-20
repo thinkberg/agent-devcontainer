@@ -109,8 +109,8 @@ that hooks are not a complete security boundary. Steps 0, 1, 2, 5, 9 and
 at step 4 alone is help, not a guarantee.**
 
 Step 10 needs care. Branch protection is not available on every GitHub
-plan tier (private repositories on a free organization plan have none;
-the extracarts repositories are in that state). Then the only server-side
+plan tier (private repositories on a free organization plan have none).
+Then the only server-side
 control is what the workflows refuse themselves: a release workflow that
 fails on a non-merge commit, a CI job that fails on a forbidden pattern.
 The plan must say which case applies.
@@ -224,7 +224,7 @@ One rule:
   "evidence": "diff of the manifest and the lock file",
   "enforcement": "require_approval",
   "failure_mode": "closed",
-  "owner": "leo@thinkberg.com",
+  "owner": "owner@example.com",
   "text": "Do not add or change a dependency without approval."
 }
 ```
@@ -308,9 +308,8 @@ input. It is a value, not a paragraph.
 The contract sits on top of a phase. The working process is a state
 machine — brainstorm → plan → review → implement — and the transition
 into implement is an approval token that only the operator can write.
-The phase machine is built and tested in [`template/harness/`](../template/harness/); the
-classification of a real rule corpus against it is in
-[rules-extracarts.md](rules-extracarts.md). The contract adds the scope
+The phase machine is built and tested in [`template/harness/`](../template/harness/).
+The contract adds the scope
 (`allow_write`, checks, acceptance) to a run that is already in phase
 implement.
 
@@ -349,7 +348,7 @@ The certificate is the record:
   "rules_lock_sha256": "…",
   "commit": "…",
   "checkers": [{"id": "path-scope", "exit": 0}, …],
-  "approvals": [{"rule": "dep-change", "by": "leo", "at": "…"}],
+  "approvals": [{"rule": "dep-change", "by": "operator", "at": "…"}],
   "harness_version": "…",
   "image_id": "…"
 }
@@ -513,9 +512,9 @@ gives.
 
 1. Whether P0 goes into the template now, before the rest exists. It is
    independent and it is small, and it is the phase that covers every
-   incident in the extracarts corpus.
-2. The first rule set: the 13 enforce rules in
-   [rules-extracarts.md](rules-extracarts.md) §4.1 are tested and ready.
+   incident in the rule corpus.
+2. The first rule set: the enforce rules in the generic registry
+   (`template/harness/rules.json`) are tested and ready.
 3. The two server-side checks in the workflows (release refuses a direct
    push; CI refuses session links), because branch protection is not
    available on the current plan tier.

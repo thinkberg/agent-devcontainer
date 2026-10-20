@@ -35,9 +35,8 @@ serves both agents:
   its `tool_response` for a shell tool is the raw output text with no exit
   status. A rule cannot tell a passing command from a failing one there.
 
-The worked example — a real project's rules classified and overlaid —
-is [docs/rules-extracarts.md](../../docs/rules-extracarts.md); that overlay
-lives in the extracarts project, not here. A step-by-step guide in
+A project's overlay lives in that project's `.devcontainer/rules/`, not
+here. A step-by-step guide in
 Simplified Technical English, with operator and agent procedures kept
 apart, is [docs/harness-ste.md](../../docs/harness-ste.md).
 
@@ -89,4 +88,4 @@ the tests set them to temp dirs. The guarantee needs the container.
 These hooks are the inner loop. They give the agent fast, named feedback.
 The guarantee for each rule is the control at the execute, publish or
 accept step (firewall, read-only mount, credential absence, root-owned
-token directory, CI gate); `docs/rules-extracarts.md` names it per rule.
+token directory, CI gate).

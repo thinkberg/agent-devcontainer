@@ -11,7 +11,7 @@ export HARNESS_RULES=$HERE/../rules.json HARNESS_PROJECT_RULES=$HERE/fixtures/pr
 WS=$(mktemp -d -p "${HOME:-/var/tmp}/.cache")     # a made-up workspace root; paths need not exist
 export CLAUDE_PROJECT_DIR=$WS
 export HARNESS_AGENT_DIR=$(mktemp -d)
-# no global git config in tests: Leo's gpg signing would prompt; identity from env
+# no global git config in tests: the developer's gpg signing would prompt; identity from env
 export GIT_CONFIG_GLOBAL=/dev/null GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@t GIT_COMMITTER_NAME=t GIT_COMMITTER_EMAIL=t@t
 trap 'rm -rf "$HARNESS_AGENT_DIR" "$WS" "${T:-}"' EXIT
 pass=0; fail=0

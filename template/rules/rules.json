@@ -1,5 +1,5 @@
 {
-  "$comment": "Project overlay for the harness (dcc init seeds this file). The engine merges it over the generic registry: `rules` adds rules (same id = replace), `disabled` removes generic rules by id, `protected_paths` extends the read-only list, `phases` keys override the default working process, `project` is read by your own checkers. Checkers of your own go into .devcontainer/rules/checkers/ and are addressed as {project}/checkers/<name>. See docs/rules-extracarts.md in agent-devcontainer for a full worked example.",
+  "$comment": "Project overlay for the harness (dcc init seeds this file). The engine merges it over the generic registry: `rules` adds rules (same id = replace), `disabled` removes generic rules by id, `protected_paths` extends the read-only list, `phases` keys override the default working process, `project` is read by your own checkers. Checkers of your own go into .devcontainer/rules/checkers/ and are addressed as {project}/checkers/<name>.",
   "project": { "name": "PROJECTNAME" },
   "disabled": [],
   "protected_paths": [],
