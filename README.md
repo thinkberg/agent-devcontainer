@@ -212,7 +212,7 @@ both agents.
 |----------------------|-----------------------------------------------------------------------|
 | `dcc`                | Start the container if necessary. Open a shell in the container.      |
 | `dcc attach <cmd>`   | Run `<cmd>` in the container, not a shell. Example: `dcc attach claude` or `dcc attach codex`. |
-| `dcc up <cmd>`       | Start the container and the database, then run `<cmd>`. Use this in scripts. Binds the `DEVICES` that are present, recreates the container when that set changed. |
+| `dcc up <cmd>`       | Start the container and the database, then run `<cmd>`. Use this in scripts. Binds the `DEVICES` that are present, recreates the container from its image when that set changed. |
 | `dcc down`           | Stop the container and the database. All data stays.                  |
 | `dcc rebuild`        | Build a new image and container, prune the images earlier rebuilds left behind. The database does not change. |
 | `dcc update`         | Update `.devcontainer` from the template on GitHub, keep the configuration. Then `dcc rebuild`. |
@@ -313,8 +313,9 @@ Facts:
 - Podman stores the mount sources when it creates the container and does
   not start the container when one is missing. `dcc up` recreates the
   container when the set of present nodes changed since it was created,
-  and says so. A recreate runs the setup scripts again and empties the
-  container's `/tmp`.
+  and says so. The recreate keeps the image: no build, no feature
+  downloads. It runs the setup scripts again and empties the container's
+  `/tmp`.
 - A file bind keeps the old node. After a replug, run `dcc down` then
   `dcc up`.
 - A source that is always there, such as the directory `/dev/bus/usb`,

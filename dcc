@@ -162,13 +162,25 @@ up() {
         [ ! -e "$d" ] || { want="$want $d"; mounts+=(--mount "type=bind,source=$d,target=$d"); }
         case "$mounted" in *" $d "*) have="$have $d" ;; esac
     done
+    local cfg=
     if [ "$mounted" != none ] && [ "$want" != "$have" ] && [ "${1:-}" != --remove-existing-container ]; then
-        echo "devices changed:${have:- none} ->${want:- none}; recreating $CTR" >&2
-        set -- --remove-existing-container "$@"
+        echo "devices changed:${have:- none} ->${want:- none}; recreating $CTR from its image" >&2
+        # Same image, other mounts: an override config naming the container's
+        # image spares the CLI's build. Podman never caches that build's
+        # features stage (buildah keys the layer on the CLI's per-run temp
+        # dir), so a build reinstalls node, gh and claude-code. The image
+        # carries the host uid already, hence no uid step either
+        cfg=$(mktemp) && trap "rm -f '$cfg'" EXIT   # expanded now: cfg is local
+        npx --yes @devcontainers/cli read-configuration --workspace-folder "$ROOT" \
+            | node -e 'const c = JSON.parse(require("fs").readFileSync(0, "utf8")).configuration
+                       delete c.configFilePath; delete c.build; delete c.features; c.image = process.argv[1]
+                       console.log(JSON.stringify(c))' "$($ENGINE inspect "$CTR" -f '{{.ImageName}}')" >"$cfg"
+        set -- --remove-existing-container --override-config "$cfg" --update-remote-user-uid-default never "$@"
     fi
     ensure_db
     npx --yes @devcontainers/cli up --docker-path "$ENGINE" \
         --workspace-folder "$ROOT" ${mounts[@]+"${mounts[@]}"} "$@"
+    [ -z "$cfg" ] || rm -f "$cfg"   # exec_in may follow: the EXIT trap would not run
 }
 
 exec_in() {   # run a command (default: interactive shell) inside as vscode
