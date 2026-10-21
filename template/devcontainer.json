@@ -88,6 +88,9 @@
   "containerEnv": {
     "CLAUDE_CONFIG_DIR": "/home/vscode/.claude",
     "DISABLE_AUTOUPDATER": "1",
+    // podman exec sets no SHELL; a tool started directly (dcc attach claude,
+    // dcc attach codex) would otherwise fall back to /bin/sh, which is dash
+    "SHELL": "/bin/bash",
     // the node feature makes every interactive shell re-link
     // $NVM_DIR/current (rm + ln); the CLI's env-probe shell and dcc's shell
     // overlap at start and race on it ("ln: … current/vXX: File exists").
