@@ -26,6 +26,9 @@ many repositories.
   `--userns=keep-id:uid=1000,gid=1000`. The agent runs as the user
   `vscode`, which is your host user on the mounted files. The mapping is
   correct for each host uid, also for uid 501 on macOS.
+- The container carries your host groups (`--group-add=keep-groups`) for
+  the device nodes. Inside, they reach only what is bind-mounted: the
+  workspace, the state directories, the devices.
 - The firewall starts as root, before all other processes. If the firewall
   does not start, the container stops.
 - The user `vscode` has no capabilities. `sudo` does not operate in the
@@ -43,8 +46,10 @@ many repositories.
 
 ## Necessary tools
 
-- **Rootless podman**, version 5.x. On Debian 13, install it with
-  `sudo apt install podman`.
+- **Rootless podman**, version 5.x, with the **crun** runtime. On Debian
+  13, install both with `sudo apt install podman crun`. Podman uses crun
+  when it is present. Under runc the container does not get your host
+  groups (see "Use host devices").
 - On macOS, install podman with `brew install podman`. Then make the VM
   one time: `podman machine init`, then `podman machine start`. The VM
   mounts `/Users`. Keep the projects in `/Users`.
@@ -320,8 +325,19 @@ Facts:
   `dcc up`.
 - A source that is always there, such as the directory `/dev/bus/usb`,
   stays in `devcontainer.json`.
-- Rootless podman applies no device cgroup. The file modes and ACLs of the
-  host decide what the agent can open.
+- Rootless podman applies no device cgroup. The container runs with your
+  host groups (`--group-add=keep-groups`): a node that your groups open on
+  the host, such as a serial port in `dialout`, opens in the container.
+  This needs the crun runtime; under runc the flag does nothing. Inside,
+  `id` shows the groups as `nogroup`. That is correct: they are unmapped,
+  but the kernel honours them.
+- For the other nodes the host's file modes and ACLs decide. logind grants
+  the logged-in user an ACL on cameras and the other `uaccess` devices,
+  and keep-id carries that uid inside. A udev `MODE="0666"` rule remains
+  for a node that no group of yours covers, such as `hidraw`.
+- ModemManager probes a new serial port that claims AT support, for some
+  seconds after plug-in. Disable it on a host without a cellular modem, or
+  add `ENV{ID_MM_DEVICE_IGNORE}="1"` to the device's udev rule.
 
 <!-- ste: procedure -->
 

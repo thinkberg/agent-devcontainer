@@ -16,6 +16,12 @@
     // ownership — the thing rootless docker could not do (it forced
     // remoteUser root)
     "--userns=keep-id:uid=1000,gid=1000",
+    // your host groups come along (dialout for serial ports, and so on):
+    // a node your groups open on the host opens in the container. Inside,
+    // id shows them as nogroup — unmapped, but the kernel honours them.
+    // crun only; under runc the flag is inert and the host's file modes
+    // alone decide. README 'Use host devices'
+    "--group-add=keep-groups",
     // kills setuid: sudo is inert, root work is pid 1 (entry.sh) or
     // podman exec -u root from the host (dcc allow / dcc fw / dcc root)
     "--security-opt=no-new-privileges",
