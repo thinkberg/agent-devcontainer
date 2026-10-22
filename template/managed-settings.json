@@ -117,5 +117,6 @@
         ]
       }
     ]
-  }
+  },
+  "cleanupPeriodDays": 365
 }
