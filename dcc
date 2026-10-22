@@ -221,7 +221,13 @@ seed() {   # agent settings from an existing project — never its tokens or log
 [ $# -gt 0 ] || set -- attach
 case "$1" in
     up)      shift; up; [ $# -eq 0 ] || exec_in "$@" ;;
-    rebuild) rm -f "$CHROME_DIR"/*.sock; up --remove-existing-container   # a new container starts with chrome off
+    rebuild) shift
+             case "$#:${1:-}" in
+                 0:) ;;
+                 1:--no-cache) set -- --build-no-cache ;;
+                 *) echo "usage: dcc rebuild [--no-cache]" >&2; exit 1 ;;
+             esac
+             rm -f "$CHROME_DIR"/*.sock; up --remove-existing-container "$@"   # a new container starts with chrome off
              # the replaced image pair (vsc-<name>-<hash>, -uid) stays behind untagged,
              # ~2 GB per rebuild. Dangling images off the devcontainers base only:
              # every dcc image is one, nothing else on the host qualifies
@@ -345,5 +351,5 @@ case "$1" in
         running "$CTR" || up
         exec_in "$@"
         ;;
-    *) echo "usage: dcc [attach [cmd…]|up [cmd…]|rebuild|update|down|db reset|allow <domain>|chrome [on|off|status]|watermarks [on|off|status]|approve <plan> [--scope g…]|approve-release <repo> <pr>|check|harness [on|off|status]|fw|root|init <name>|seed [project]]" >&2; exit 1 ;;
+    *) echo "usage: dcc [attach [cmd…]|up [cmd…]|rebuild [--no-cache]|update|down|db reset|allow <domain>|chrome [on|off|status]|watermarks [on|off|status]|approve <plan> [--scope g…]|approve-release <repo> <pr>|check|harness [on|off|status]|fw|root|init <name>|seed [project]]" >&2; exit 1 ;;
 esac
