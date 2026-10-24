@@ -1,7 +1,7 @@
 # Restricted dev container for coding agents. Node, gh and Claude come from
 # devcontainer features; Codex is installed below. A database, if any, runs as
 # a sidecar service (see dcc), not in here.
-FROM mcr.microsoft.com/devcontainers/base:ubuntu-24.04
+FROM mcr.microsoft.com/devcontainers/base:ubuntu24.04
 
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
         ipset iptables dnsutils jq curl ca-certificates python3 bubblewrap \

@@ -219,7 +219,7 @@ both agents.
 | `dcc attach <cmd>`   | Run `<cmd>` in the container, not a shell. Example: `dcc attach claude` or `dcc attach codex`. |
 | `dcc up <cmd>`       | Start the container and the database, then run `<cmd>`. Use this in scripts. Binds the `DEVICES` that are present, recreates the container from its image when that set changed. |
 | `dcc down`           | Stop the container and the database. All data stays.                  |
-| `dcc rebuild [--no-cache]` | Build a new image and container, prune the images earlier rebuilds left behind. Reuse cached layers unless `--no-cache` is given, which reinstalls build-time tools. The database does not change. |
+| `dcc rebuild [--no-cache]` | Build a new image and container, prune the images earlier rebuilds left behind. Reuse cached layers unless `--no-cache` is given, which pulls the base image again and reinstalls build-time tools. The database does not change. |
 | `dcc update`         | Update `.devcontainer` from the template on GitHub, keep the configuration. Then `dcc rebuild`. |
 | `dcc seed [project]` | Copy the agent settings from a project that exists (name or directory), not the tokens. Without an argument, the command asks. |
 | `dcc db reset`       | Remove the database and its data.                                     |

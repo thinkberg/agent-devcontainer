@@ -12,9 +12,11 @@
 #   dcc up [cmd…]       build/start the container (+ database sidecar if
 #                      configured, + the dcc.conf DEVICES that are present),
 #                      optionally run cmd afterwards
-#   dcc rebuild         recreate the dev container (new image, fresh firewall)
+#   dcc rebuild [--no-cache]
+#                       recreate the dev container (new image, fresh firewall)
 #                      and prune the images earlier rebuilds left untagged;
-#                      the database and its data are untouched
+#                      the database and its data are untouched. --no-cache:
+#                      pull the base image again and rerun every build step
 #   dcc update [--since REV]
 #                       bring .devcontainer up to date with the template on
 #                       GitHub (runs .devcontainer/update); then dcc rebuild
@@ -224,7 +226,12 @@ case "$1" in
     rebuild) shift
              case "$#:${1:-}" in
                  0:) ;;
-                 1:--no-cache) set -- --build-no-cache ;;
+                 1:--no-cache)   # the CLI pairs --no-cache with --pull only under BuildKit;
+                                # podman builds FROM the local copy (pull policy
+                                # missing), so a stale base stays stale without this.
+                                # ponytail: first FROM only, no --platform/stage aliases
+                                $ENGINE pull "$(awk 'toupper($1)=="FROM"{print $2; exit}' "$ROOT/.devcontainer/Dockerfile")"
+                                set -- --build-no-cache ;;
                  *) echo "usage: dcc rebuild [--no-cache]" >&2; exit 1 ;;
              esac
              rm -f "$CHROME_DIR"/*.sock; up --remove-existing-container "$@"   # a new container starts with chrome off
