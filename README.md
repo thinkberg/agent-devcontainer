@@ -217,7 +217,7 @@ both agents.
 |----------------------|-----------------------------------------------------------------------|
 | `dcc`                | Start the container if necessary. Open a shell in the container.      |
 | `dcc attach <cmd>`   | Run `<cmd>` in the container, not a shell. Example: `dcc attach claude` or `dcc attach codex`. |
-| `dcc up <cmd>`       | Start the container and the database, then run `<cmd>`. Use this in scripts. Binds the `DEVICES` that are present, recreates the container from its image when that set changed. |
+| `dcc up <cmd>`       | Start the container and the database, then run `<cmd>`. Use this in scripts. Binds the `DEVICES` that are present, recreates the container from its image when that set or `devcontainer.json` changed since it was created. |
 | `dcc down`           | Stop the container and the database. All data stays.                  |
 | `dcc rebuild [--no-cache]` | Build a new image and container, prune the images earlier rebuilds left behind. Reuse cached layers unless `--no-cache` is given, which pulls the base image again and reinstalls build-time tools. The database does not change. |
 | `dcc update`         | Update `.devcontainer` from the template on GitHub, keep the configuration. Then `dcc rebuild`. |
@@ -321,6 +321,11 @@ Facts:
   and says so. The recreate keeps the image: no build, no feature
   downloads. It runs the setup scripts again and empties the container's
   `/tmp`.
+- The same recreate follows an edit of `devcontainer.json` (a `--publish`,
+  a mask, `containerEnv`): podman starts an existing container as it was
+  created, so the edit reaches only a new one. The `Dockerfile`, the
+  features and the other files in `.devcontainer` are in the image and
+  need `dcc rebuild`.
 - A file bind keeps the old node. After a replug, run `dcc down` then
   `dcc up`.
 - A source that is always there, such as the directory `/dev/bus/usb`,

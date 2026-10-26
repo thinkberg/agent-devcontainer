@@ -10,8 +10,9 @@
 #                      instead of the shell (e.g. dcc attach claude); tmux
 #                      lives on the host — run dcc inside your own setup
 #   dcc up [cmd…]       build/start the container (+ database sidecar if
-#                      configured, + the dcc.conf DEVICES that are present),
-#                      optionally run cmd afterwards
+#                      configured, + the dcc.conf DEVICES that are present;
+#                      recreated from its image when devcontainer.json or
+#                      that device set changed), optionally run cmd afterwards
 #   dcc rebuild [--no-cache]
 #                       recreate the dev container (new image, fresh firewall)
 #                      and prune the images earlier rebuilds left untagged;
@@ -158,15 +159,22 @@ up() {
     # at creation and refuses a start when one is missing, so dcc binds the
     # nodes present now and recreates the container when that set changed
     # since it was created (camera unplugged, or plugged in later)
-    local d mounted want= have= mounts=()
+    local d mounted want= have= mounts=() why=
     mounted=$($ENGINE inspect "$CTR" -f '{{range .Mounts}} {{.Source}}{{end}} ' 2>/dev/null || echo none)
     for d in $DEVICES; do
         [ ! -e "$d" ] || { want="$want $d"; mounts+=(--mount "type=bind,source=$d,target=$d"); }
         case "$mounted" in *" $d "*) have="$have $d" ;; esac
     done
+    [ "$want" = "$have" ] || why="devices changed:${have:- none} ->${want:- none}"
+    # the CLI starts an existing container as it was created: a devcontainer.json
+    # edit (a --publish, a mask, containerEnv) reaches only a new one. The
+    # Dockerfile and the features still need dcc rebuild
+    [ "$mounted" = none ] \
+        || [ "$(perl -e 'print +(stat shift)[9]' "$ROOT/.devcontainer/devcontainer.json")" -le "$($ENGINE inspect "$CTR" -f '{{.Created.Unix}}')" ] \
+        || why="${why:+$why; }devcontainer.json changed since $CTR was created"
     local cfg=
-    if [ "$mounted" != none ] && [ "$want" != "$have" ] && [ "${1:-}" != --remove-existing-container ]; then
-        echo "devices changed:${have:- none} ->${want:- none}; recreating $CTR from its image" >&2
+    if [ "$mounted" != none ] && [ -n "$why" ] && [ "${1:-}" != --remove-existing-container ]; then
+        echo "$why; recreating $CTR from its image" >&2
         # Same image, other mounts: an override config naming the container's
         # image spares the CLI's build. Podman never caches that build's
         # features stage (buildah keys the layer on the CLI's per-run temp
