@@ -217,7 +217,7 @@ both agents.
 |----------------------|-----------------------------------------------------------------------|
 | `dcc`                | Start the container if necessary. Open a shell in the container.      |
 | `dcc attach <cmd>`   | Run `<cmd>` in the container, not a shell. Example: `dcc attach claude` or `dcc attach codex`. |
-| `dcc up <cmd>`       | Start the container and the database, then run `<cmd>`. Use this in scripts. Binds the `DEVICES` that are present, recreates the container from its image when that set or `devcontainer.json` changed since it was created. |
+| `dcc up <cmd>`       | Start the container and the database, then run `<cmd>`. Use this in scripts. Binds the `DEVICES` that are present, recreates the container from its image when that set or `devcontainer.json` changed since it was created. When the devcontainer CLI misses the container start and waits for ever ([devcontainers/cli#1269](https://github.com/devcontainers/cli/issues/1269)), dcc notices after 20 s and reruns it. |
 | `dcc down`           | Stop the container and the database. All data stays.                  |
 | `dcc rebuild [--no-cache]` | Build a new image and container, prune the images earlier rebuilds left behind. Reuse cached layers unless `--no-cache` is given, which pulls the base image again and reinstalls build-time tools. The database does not change. |
 | `dcc update`         | Update `.devcontainer` from the template on GitHub, keep the configuration. Then `dcc rebuild`. |

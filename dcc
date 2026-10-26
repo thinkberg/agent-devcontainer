@@ -111,6 +111,35 @@ CHROME_DIR=/tmp/dcc-$NAME-chrome   # bind source of the chrome toggle (devcontai
 
 running() { [ "$($ENGINE inspect -f '{{.State.Running}}' "$1" 2>/dev/null)" = true ]; }
 
+mine() {   # is pid $1 under this dcc
+    local p=$1
+    while [ "${p:-0}" -gt 1 ]; do
+        [ "$p" = "$$" ] && return 0
+        p=$(ps -o ppid= -p "$p" 2>/dev/null | tr -d ' ') || return 1
+    done
+    return 1
+}
+
+hang_watch() {   # devcontainers/cli#1269: the CLI's `podman events` listener for
+    # the container's start event can miss it (it tails the journal from
+    # where it was when it came up, ~1 s under load; the container starts
+    # sooner): the container runs, the CLI waits for ever, no hook runs. The
+    # CLI kills the listener the moment it matches, so ours still alive 20 s
+    # after the container came up is the hang: kill the CLI; up() reruns it,
+    # and the rerun attaches to the running container and runs the hooks
+    local l p seen=
+    while sleep 2; do
+        l=; for p in $(pgrep -f 'podman events --format json --filter event=start' || :); do
+            mine "$p" && { l=$p; break; }; done
+        [ -n "$l" ] && running "$CTR" || { seen=; continue; }
+        : "${seen:=$SECONDS}"
+        [ $((SECONDS - seen)) -ge 20 ] || continue
+        echo "the devcontainer CLI missed the container start (devcontainers/cli#1269); rerunning up" >&2
+        kill "$(ps -o ppid= -p "$l" | tr -d ' ')" "$l" 2>/dev/null || :
+        return 0
+    done
+}
+
 ensure_db() {
     $ENGINE network inspect "$NET" >/dev/null 2>&1 \
         || $ENGINE network create --subnet "$SUBNET" "$NET" >/dev/null
@@ -188,9 +217,15 @@ up() {
         set -- --remove-existing-container --override-config "$cfg" --update-remote-user-uid-default never "$@"
     fi
     ensure_db
+    hang_watch & local wd=$! rc=0
     npx --yes @devcontainers/cli up --docker-path "$ENGINE" \
-        --workspace-folder "$ROOT" ${mounts[@]+"${mounts[@]}"} "$@"
+        --workspace-folder "$ROOT" ${mounts[@]+"${mounts[@]}"} "$@" || rc=$?
+    kill "$wd" 2>/dev/null || :
+    if wait "$wd"; then   # exit 0: it fired (stopped above: 143) — the CLI is gone, the container runs
+        rc=0; npx --yes @devcontainers/cli up --docker-path "$ENGINE" --workspace-folder "$ROOT" || rc=$?
+    fi
     [ -z "$cfg" ] || rm -f "$cfg"   # exec_in may follow: the EXIT trap would not run
+    return "$rc"
 }
 
 exec_in() {   # run a command (default: interactive shell) inside as vscode
