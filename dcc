@@ -210,7 +210,7 @@ up() {
         # dir), so a build reinstalls node, gh and claude-code. The image
         # carries the host uid already, hence no uid step either
         cfg=$(mktemp) && trap "rm -f '$cfg'" EXIT   # expanded now: cfg is local
-        npx --yes @devcontainers/cli read-configuration --workspace-folder "$ROOT" \
+        npx --yes @devcontainers/cli read-configuration --docker-path "$ENGINE" --workspace-folder "$ROOT" \
             | node -e 'const c = JSON.parse(require("fs").readFileSync(0, "utf8")).configuration
                        delete c.configFilePath; delete c.build; delete c.features; c.image = process.argv[1]
                        console.log(JSON.stringify(c))' "$($ENGINE inspect "$CTR" -f '{{.ImageName}}')" >"$cfg"
