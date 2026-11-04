@@ -25,7 +25,7 @@
 #                      containers stay; next dcc up restarts them)
 #   dcc db reset        wipe the database sidecar + its data volume (re-inits
 #                      from .devcontainer/db-init.d on next dcc up)
-#   dcc allow <domain>  temporary egress grant (dies on container restart)
+#   dcc allow <domain|ip>  temporary egress grant (dies on container restart)
 #   dcc chrome [on|off|status]
 #                       your Chrome for the agent (claude --chrome): on = link
 #                       the extension's socket into the container, off = unlink
@@ -299,7 +299,7 @@ case "$1" in
         $ENGINE volume rm "$VOL" >/dev/null 2>&1 || true
         echo "database wiped — next 'dcc up' re-initializes from .devcontainer/db-init.d"
         ;;
-    allow)   $ENGINE exec -u root "$CTR" /usr/local/bin/cc-allow.sh "${2:?usage: dcc allow <domain>}" ;;
+    allow)   $ENGINE exec -u root "$CTR" /usr/local/bin/cc-allow.sh "${2:?usage: dcc allow <domain|ip>}" ;;
     # your Chrome for the agent: the Claude in Chrome extension keeps a native
     # host running on the host, listening on /tmp/claude-mcp-browser-bridge-<user>/<pid>.sock;
     # claude inside scans the same directory for user vscode = the read-only
@@ -401,5 +401,5 @@ case "$1" in
         running "$CTR" || up
         exec_in "$@"
         ;;
-    *) echo "usage: dcc [attach [cmd…]|up [cmd…]|rebuild [--no-cache]|update|down|db reset|allow <domain>|chrome [on|off|status]|watermarks [on|off|status]|approve <plan> [--scope g…]|approve-release <repo> <pr>|check|harness [on|off|status]|fw|root|init <name>|seed [project]]" >&2; exit 1 ;;
+    *) echo "usage: dcc [attach [cmd…]|up [cmd…]|rebuild [--no-cache]|update|down|db reset|allow <domain|ip>|chrome [on|off|status]|watermarks [on|off|status]|approve <plan> [--scope g…]|approve-release <repo> <pr>|check|harness [on|off|status]|fw|root|init <name>|seed [project]]" >&2; exit 1 ;;
 esac

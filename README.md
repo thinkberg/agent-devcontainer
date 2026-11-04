@@ -223,7 +223,7 @@ both agents.
 | `dcc update`         | Update `.devcontainer` from the template on GitHub, keep the configuration. Then `dcc rebuild`. |
 | `dcc seed [project]` | Copy the agent settings from a project that exists (name or directory), not the tokens. Without an argument, the command asks. |
 | `dcc db reset`       | Remove the database and its data.                                     |
-| `dcc allow <domain>` | Let egress through to one domain, until the next restart.             |
+| `dcc allow <domain\|ip>` | Let egress through to one domain or IP address, until the next restart. |
 | `dcc chrome on\|off\|status` | Open your Chrome (the Claude in Chrome extension) to the agent, until `dcc chrome off` or the next restart. Linux hosts only. |
 | `dcc watermarks on\|off\|status` | Start the watermarks-remover service for the agent, until `dcc watermarks off` or the next restart. |
 | `dcc fw`             | Run the firewall again: resolve the allowlist again, remove the `dcc allow` grants. |
@@ -572,7 +572,7 @@ Facts:
 
 - Permanent: add the domain to `.devcontainer/allowlist.txt`. Then run
   `dcc rebuild`.
-- For one session: run `dcc allow <domain>` on the host. The grant stops
+- For one session: run `dcc allow <domain|ip>` on the host. The grant stops
   when the container restarts.
 - The firewall resolves the list at each start, and again every 20 seconds
   (a loop under pid 1). A host behind a CDN that answers with other
