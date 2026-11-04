@@ -74,6 +74,12 @@
     // `dcc chrome on` hard-links the socket in; dcc up creates the source.
     // README 'Use your Chrome from the container':
     //,"source=/tmp/dcc-PROJECTNAME-chrome,target=/tmp/claude-mcp-browser-bridge-vscode,type=bind,readonly"
+    // SMB shares (or another host directory): the host mounts them under
+    // /mnt/smb, the container gets that directory. rslave: a share mounted or
+    // unmounted on the host later follows into the running container; without
+    // it the container keeps the state from its creation. README 'Mount an
+    // SMB share':
+    //,"source=/mnt/smb,target=/mnt/smb,type=bind,bind-propagation=rslave"
 
     // ---- masked secret files (this list is the inventory) ----------------
     // Every secret-bearing file in the workspace gets an empty read-only

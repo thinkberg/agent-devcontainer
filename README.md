@@ -88,7 +88,7 @@ Step 2: Edit the copied files. The files are part of your project:
 | File | Change |
 |------|--------|
 | `.devcontainer/dcc.conf` | The subnet, the host devices, and the database settings (see below). |
-| `.devcontainer/devcontainer.json` | The secret masks (see below), other features, and environment variables. |
+| `.devcontainer/devcontainer.json` | The secret masks, the SMB shares (see below), other features, and environment variables. |
 | `.devcontainer/Dockerfile` | Other tools, in the marked section. |
 | `.devcontainer/allowlist.txt` | The domains that the agent can connect to. |
 | `.devcontainer/setup-project.sh` | Optional. Your project setup (venv, `npm ci`, …). Make it executable. |
@@ -343,6 +343,89 @@ Facts:
 - ModemManager probes a new serial port that claims AT support, for some
   seconds after plug-in. Disable it on a host without a cellular modem, or
   add `ENV{ID_MM_DEVICE_IGNORE}="1"` to the device's udev rule.
+
+<!-- ste: procedure -->
+
+## Mount an SMB share
+
+Off by default. The host mounts the share. The container gets the host
+directory that holds the mount points. The container cannot mount
+anything itself (no `CAP_SYS_ADMIN`). The SMB traffic is host traffic:
+the firewall of the container does not see it, the allowlist needs no
+entry.
+
+1. Install the mount helper: `sudo apt install cifs-utils`.
+2. Make the mount point, under one directory for all shares:
+   `sudo mkdir -p /mnt/smb/myshare`.
+3. Make the file `~/.config/smb/myshare` with mode `600`. It holds the
+   login:
+
+   ```
+   username=you
+   password=secret
+   ```
+
+4. Add the share to `/etc/fstab`. `uid` and `gid` are your host ids
+   (`id -u`, `id -g`): the files are yours on the host and belong to
+   `vscode` in the container.
+
+   ```
+   //server/share  /mnt/smb/myshare  cifs  credentials=/home/you/.config/smb/myshare,uid=1000,gid=1000,noauto,user  0  0
+   ```
+
+5. Add the directory to the `mounts` of
+   `.devcontainer/devcontainer.json`. The template has the line, as a
+   comment:
+
+   ```json
+   "source=/mnt/smb,target=/mnt/smb,type=bind,bind-propagation=rslave"
+   ```
+
+6. Run `dcc up`. It recreates the container from its image, because
+   `devcontainer.json` changed.
+
+Then `mount /mnt/smb/myshare` on the host mounts the share, and
+`umount /mnt/smb/myshare` removes it. The `user` option permits both
+without `sudo`.
+
+Without `sudo` at all: a FUSE client that runs as you replaces
+`cifs-utils` and `/etc/fstab`. [rclone](https://rclone.org) has an SMB
+backend and is one binary; put it in `~/.local/bin`. The mount points
+then go under your home:
+
+```bash
+rclone config                                  # one time: a remote of type smb, named nas here
+mkdir -p ~/smb/myshare
+rclone mount nas:myshare ~/smb/myshare --daemon --vfs-cache-mode writes
+fusermount3 -u ~/smb/myshare                   # unmount
+```
+
+The `mounts` line then names that directory as the source:
+
+```json
+"source=${localEnv:HOME}/smb,target=/mnt/smb,type=bind,bind-propagation=rslave"
+```
+
+Facts:
+
+- `bind-propagation=rslave`: a share that you mount or unmount on the host
+  appears or disappears in the running container. Without the option the
+  container keeps the state from the time of its creation: a share that
+  you mount later shows as an empty directory that `vscode` cannot read.
+- Bind the directory that holds the mount points (`/mnt/smb`), not one
+  share. A bind of the share itself keeps the old mount when you mount
+  the share again on the host.
+- The share goes in the `mounts` of `devcontainer.json`, not in
+  `DEVICES`: `dcc up` passes `DEVICES` through the `--mount` flag of the
+  devcontainer CLI, which accepts only `type`, `source`, `target` and
+  `external`. The `mounts` strings go to podman unchanged.
+- The login file stays on the host. The container does not see it.
+- A FUSE mount is open to its owner only. `vscode` is you (keep-id) and
+  reads it. Root in the container is a subuid and gets "Permission
+  denied"; that is correct, nothing of root touches the share. This is
+  also why the bind names the parent directory: podman sets the bind up
+  as the container's root, which can enter a normal directory but not
+  the FUSE mount itself.
 
 <!-- ste: procedure -->
 
