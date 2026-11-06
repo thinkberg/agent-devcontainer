@@ -209,6 +209,21 @@ up() {
         # features stage (buildah keys the layer on the CLI's per-run temp
         # dir), so a build reinstalls node, gh and claude-code. The image
         # carries the host uid already, hence no uid step either
+        # The image's devcontainer.metadata label holds the devcontainer.json it
+        # was built from, and the CLI merges that into every container it
+        # creates (mounts by target, the config wins a clash, the rest stays):
+        # a mount or a containerEnv removed from the file comes back, and a
+        # mount whose source went with it fails the podman run — after the CLI
+        # removed the old container, so the next dcc up builds. Relabel with the
+        # feature entries only (the ones with an id); the config below is the
+        # whole file. The base image's own entry (remoteUser) goes too; the
+        # template sets it. Seconds: one empty layer on the local image
+        local img meta
+        img=$($ENGINE inspect "$CTR" -f '{{.ImageName}}')
+        meta=$($ENGINE inspect "$img" -f '{{index .Config.Labels "devcontainer.metadata"}}' \
+            | node -e 'const s = require("fs").readFileSync(0, "utf8").trim()
+                       console.log(JSON.stringify(s ? JSON.parse(s).filter(e => e.id) : []))')
+        $ENGINE build -q -t "$img" --label "devcontainer.metadata=$meta" -f - "$ROOT/.devcontainer/empty.d" <<<"FROM $img" >/dev/null
         cfg=$(mktemp) && trap "rm -f '$cfg'" EXIT   # expanded now: cfg is local
         npx --yes @devcontainers/cli read-configuration --docker-path "$ENGINE" --workspace-folder "$ROOT" \
             | node -e 'const c = JSON.parse(require("fs").readFileSync(0, "utf8")).configuration

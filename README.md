@@ -323,9 +323,11 @@ Facts:
   `/tmp`.
 - The same recreate follows an edit of `devcontainer.json` (a `--publish`,
   a mask, `containerEnv`): podman starts an existing container as it was
-  created, so the edit reaches only a new one. The `Dockerfile`, the
-  features and the other files in `.devcontainer` are in the image and
-  need `dcc rebuild`.
+  created, so the edit reaches only a new one. A mount or a variable
+  that you remove from the file is gone in the new container too: `dcc
+  up` relabels the image, whose metadata would otherwise bring the old
+  list back. The `Dockerfile`, the features and the other files in
+  `.devcontainer` are in the image and need `dcc rebuild`.
 - A file bind keeps the old node. After a replug, run `dcc down` then
   `dcc up`.
 - A source that is always there, such as the directory `/dev/bus/usb`,
