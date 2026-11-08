@@ -75,9 +75,9 @@ if [ "${1:-}" = init ]; then
         echo "sidecar subnet 172.30.$n.0/24"
         break
     done
-    # agent state contains auth tokens — never commit it
+    # agent state contains auth tokens, settings.local.json is per-machine — never commit them
     if [ -d .git ]; then
-        for state in .claude-devcontainer/ .codex-devcontainer/ .graft-devcontainer/; do
+        for state in .claude-devcontainer/ .codex-devcontainer/ .graft-devcontainer/ .claude/settings.local.json; do
             grep -qxF "$state" .gitignore 2>/dev/null || { echo "$state" >>.gitignore; echo "added $state to .gitignore"; }
         done
     fi

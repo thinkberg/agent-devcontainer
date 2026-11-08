@@ -80,8 +80,9 @@ dcc init myproject
 
 The command copies the template into `.devcontainer/` and sets the name.
 In a git repository, the command also adds `.claude-devcontainer/`,
-`.codex-devcontainer/` and `.graft-devcontainer/` to `.gitignore`. These
-directories hold agent login state. Do not commit them.
+`.codex-devcontainer/`, `.graft-devcontainer/` and `.claude/settings.local.json`
+to `.gitignore`. The directories hold agent login state and the file holds
+per-machine Claude Code settings. Do not commit them.
 
 Step 2: Edit the copied files. The files are part of your project:
 
