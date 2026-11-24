@@ -17,7 +17,9 @@
 #                       recreate the dev container (new image, fresh firewall)
 #                      and prune the images earlier rebuilds left untagged;
 #                      the database and its data are untouched. --no-cache:
-#                      pull the base image again and rerun every build step
+#                      pull the base image again and rerun every build step.
+#                      Refuses below 10 GB free in the podman store
+#                      (DCC_MIN_FREE_GB)
 #   dcc update [--since REV]
 #                       bring .devcontainer up to date with the template on
 #                       GitHub (runs .devcontainer/update); then dcc rebuild
@@ -282,6 +284,14 @@ seed() {   # agent settings from an existing project — never its tokens or log
 case "$1" in
     up)      shift; up; [ $# -eq 0 ] || exec_in "$@" ;;
     rebuild) shift
+             # a rebuild needs the new image plus an ID-mapped copy of all its
+             # layers for the container (keep-id), while the old pair is still
+             # there. Out of space the podman run fails after the CLI removed
+             # the old container, and the failed store drops the new image too.
+             # ponytail: one threshold for every project, DCC_MIN_FREE_GB to tune
+             free=$(df -Pk "$($ENGINE info -f '{{.Store.GraphRoot}}')" | awk 'NR==2 {print int($4/1048576)}')
+             [ "$free" -ge "${DCC_MIN_FREE_GB:-10}" ] \
+                 || { echo "ERROR: ${free} GB free in the $ENGINE store, a rebuild wants ${DCC_MIN_FREE_GB:-10} (DCC_MIN_FREE_GB to override); nothing was changed" >&2; exit 1; }
              case "$#:${1:-}" in
                  0:) ;;
                  1:--no-cache)   # the CLI pairs --no-cache with --pull only under BuildKit;
