@@ -195,6 +195,22 @@ expect deny:git-stage-explicit "$PB" "$(bash_json "git -C $P add -A")" "on again
 "$TS" post <<<"$(bash_json "$P/bin/check-tickets")" >/dev/null
 unset HARNESS_OFF
 
+echo "== operator switch (HARNESS_ADVISORY marker)"
+export HARNESS_ADVISORY=$(mktemp)
+out=$(pb <<<"$(bash_json "git -C $P add -A")")
+[ "$(jq -r '.hookSpecificOutput.permissionDecision // "none"' <<<"$out")" = none ] && grep -q 'git-stage-explicit' <<<"$(jq -r '.hookSpecificOutput.additionalContext' <<<"$out")" \
+    && pass=$((pass+1)) || { fail=$((fail+1)); echo "FAIL [advisory: pre-bash reports, no decision] $out"; }
+expect allow "$PW" "$(edit_json "$WS/www/static/legal/avv-de-v1.2.pdf")" "advisory: pre-write makes no decision"
+"$TS" post <<<"$(bash_json "$P/bin/update-estimates backend#12=1")" >/dev/null
+out=$("$TS" stop <<<"$(jq -n '{session_id:"t1"}')"); rc=$?
+[ $rc = 0 ] && jq -e '.systemMessage | test("check-tickets-after-change")' <<<"$out" >/dev/null \
+    && pass=$((pass+1)) || { fail=$((fail+1)); echo "FAIL [advisory: dirty stop passes with a systemMessage] rc=$rc $out"; }
+out=$(CLAUDE_PROJECT_DIR=$WS HARNESS_AGENT_DIR=$(mktemp -d) "$H" status | head -1); grep -q 'ADVISORY' <<<"$out" && pass=$((pass+1)) || { fail=$((fail+1)); echo "FAIL [advisory: status says ADVISORY] $out"; }
+rm -f "$HARNESS_ADVISORY"
+expect deny:git-stage-explicit "$PB" "$(bash_json "git -C $P add -A")" "advisory removed: denies"
+"$TS" post <<<"$(bash_json "$P/bin/check-tickets")" >/dev/null
+unset HARNESS_ADVISORY
+
 echo "== project overlay merge"
 OV=$(mktemp)
 run_ov() { HARNESS_PROJECT_RULES=$OV "$@"; }   # hooks with an alternative overlay

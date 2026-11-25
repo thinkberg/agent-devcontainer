@@ -17,6 +17,9 @@
 # The hooks fail closed: an unreadable registry, a corrupt overlay, a bad
 # regex or a bug in this program denies. HARNESS_OFF (a root-owned marker,
 # `dcc harness off`) makes every hook exit without a decision.
+# HARNESS_ADVISORY (`dcc harness advisory`) keeps the checks and removes the
+# block: a deny becomes context for the agent plus a message to the operator,
+# a blocked stop becomes a message. Off wins when both markers are there.
 #
 # Rules: the generic registry (rules.json next to this file) merged with
 # the project overlay (<root>/.devcontainer/rules/rules.json). State:
@@ -38,6 +41,7 @@ import sys
 AGENT = os.environ.get("HARNESS_AGENT_DIR", "/run/harness/agent")            # agent-writable run state
 APPROV = os.environ.get("HARNESS_APPROVAL_DIR", "/run/harness/approvals")    # root-only: operator tokens
 OFF = os.environ.get("HARNESS_OFF", "/run/harness/off")                      # operator's switch
+ADVISORY = os.environ.get("HARNESS_ADVISORY", "/run/harness/advisory")       # operator's switch: say, do not block
 HERE = os.path.dirname(os.path.realpath(__file__))
 GENERIC_RULES = os.environ.get("HARNESS_RULES", os.path.join(HERE, "rules.json"))
 CHECKERS = os.path.join(HERE, "checkers")
@@ -51,6 +55,10 @@ MERGED_FILE = None   # the merged registry on disk, written for checkers on firs
 
 def harness_off():
     return os.path.exists(OFF)
+
+
+def advisory():
+    return os.path.exists(ADVISORY)
 
 
 # ---- registry ----------------------------------------------------------------
@@ -337,9 +345,27 @@ def hook_input():
 
 
 def deny(reason):
+    # ponytail: an advisory deny exits like a real one — the first finding only,
+    # and a Bash write advised against is not noted for the stop checks
+    # (Edit/Write are, by post-write). Collect the findings if that matters.
+    if advisory():
+        msg = "ADVISORY, not blocked — " + reason
+        print(json.dumps({"systemMessage": msg,
+                          "hookSpecificOutput": {"hookEventName": "PreToolUse", "additionalContext": msg}}))
+        sys.exit(0)
     print(json.dumps({"hookSpecificOutput": {"hookEventName": "PreToolUse", "permissionDecision": "deny",
                                              "permissionDecisionReason": reason}}))
     sys.exit(0)
+
+
+def block_stop(msg):
+    """A Stop hook blocks with stderr and exit 2; advisory: the operator gets
+    the message and the stop goes through."""
+    if advisory():
+        print(json.dumps({"systemMessage": "ADVISORY, stop not blocked — " + msg.rstrip("\n")}))
+        sys.exit(0)
+    sys.stderr.write(msg)
+    sys.exit(2)
 
 
 def hook_root(inp):
@@ -811,8 +837,7 @@ def hook_stop_checks():
     sid = inp.get("session_id") or "nosession"
     set_root(hook_root(inp))
     if RULES is None:
-        print("harness [harness-registry]: rule registry unreadable or overlay corrupt", file=sys.stderr)
-        sys.exit(2)
+        block_stop("harness [harness-registry]: rule registry unreadable or overlay corrupt\n")
     state = state_dir()
     os.makedirs(state, exist_ok=True)
     try:
@@ -840,9 +865,8 @@ def hook_stop_checks():
         else:
             warn += line
     if block:
-        sys.stderr.write(block + warn + "These concern what this session changed. Fix them before finishing, "
-                         "or say why you cannot (each blocks once; the gate refuses the run regardless).\n")
-        sys.exit(2)
+        block_stop(block + warn + "These concern what this session changed. Fix them before finishing, "
+                   "or say why you cannot (each blocks once; the gate refuses the run regardless).\n")
     if warn:
         print(json.dumps({"systemMessage": warn[:-1]}))
 
@@ -909,10 +933,9 @@ def hook_ticket_state(mode):
         if n <= mx:
             with open(dirty, encoding="utf-8") as fh:
                 since = fh.read().rstrip("\n")
-            print("harness [check-tickets-after-change]: tickets changed in this session (since %s) and "
-                  "bin/check-tickets has not run clean since. Run the planning repo's bin/check-tickets, "
-                  "fix or flag its findings, then finish. (%d/%d)" % (since, n, mx), file=sys.stderr)
-            sys.exit(2)
+            block_stop("harness [check-tickets-after-change]: tickets changed in this session (since %s) and "
+                       "bin/check-tickets has not run clean since. Run the planning repo's bin/check-tickets, "
+                       "fix or flag its findings, then finish. (%d/%d)\n" % (since, n, mx))
         print(json.dumps({"systemMessage": "harness [check-tickets-after-change]: stop allowed after %d blocks — "
                           "bin/check-tickets still has not run clean; the gate will refuse this run" % n}))
     else:
@@ -949,6 +972,9 @@ def cli_status():
     if harness_off():
         print("harness: OFF — the operator switched it off (dcc harness off); hooks make no decisions "
               "until 'dcc harness on' or the next container start")
+    elif advisory():
+        print("harness: ADVISORY — the operator switched it to advisory (dcc harness advisory); hooks report "
+              "and do not block until 'dcc harness on' or the next container start")
     else:
         print("harness: on")
     print("rules:  %d (%s)" % (len(RULES["rules"]), (RULES.get("project") or {}).get("name") or "no project overlay"))
@@ -1184,5 +1210,7 @@ if __name__ == "__main__":
         msg = "harness [harness-engine]: %s: %s" % (type(e).__name__, e)
         if sys.argv[1:3] in (["hook", "pre-bash"], ["hook", "pre-write"]):
             deny(msg + " (fail closed)")      # PreToolUse: a non-zero exit would not block
+        if sys.argv[1:3] in (["hook", "stop-checks"], ["hook", "ticket-state"]):
+            block_stop(msg + "\n")
         print(msg, file=sys.stderr)
         sys.exit(2 if sys.argv[1:2] == ["hook"] else 1)

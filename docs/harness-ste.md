@@ -48,6 +48,7 @@ The harness has four parts:
 | `$HARNESS_AGENT_DIR` (default `/run/harness/agent`) | The run state (`run.json`). | the agent |
 | `$HARNESS_APPROVAL_DIR` (default `/run/harness/approvals`) | The approval tokens. | root |
 | `$HARNESS_OFF` (default `/run/harness/off`) | The off switch. When this file is there, the hooks make no decisions. | root |
+| `$HARNESS_ADVISORY` (default `/run/harness/advisory`) | The `advisory` switch. When this file is there, the hooks give their findings and do not block. The off switch has priority. | root |
 
 The `harness` command is on the PATH.
 
@@ -290,16 +291,33 @@ makes the token stale.
 2. Read the result of each rule: `ok`, `FAIL`, `NEEDS` (approval),
    `ERROR`.
 
-### B.5 Set the harness to off and to on
+### B.5 Set the harness to off, to `advisory` and to on
 
-Do this procedure only when you must operate without the harness for a
-short time.
+Do this procedure only when you must operate without the harness, or
+without its blocks, for a short time.
 
-1. Run `dcc harness off`. The hooks make no decisions. The usual
-   permission prompts of Claude Code apply.
+1. Select the state:
+   - Run `dcc harness off`. The hooks make no decisions. The usual
+     permission prompts of Claude Code apply.
+   - Run `dcc harness advisory`. The hooks do all checks and block
+     nothing. When a hook finds a violation, the agent gets the message
+     with the rule id, you see the same message, and the tool call
+     continues. When a Stop hook finds a violation, you see the message
+     and the session stops.
 2. Run `dcc harness on` when you complete the work.
 
 A container restart sets the harness to on.
+
+In the state `advisory`, these controls stay as they are:
+
+- The controls that are not hooks: the firewall, the mounts with write
+  protection, the approval tokens.
+- The gate. `dcc check` gives `FAIL` and exit code 1 as usual.
+- The PostToolUse checks. They give their findings to the agent after the
+  edit. They do not block in the state on.
+
+Only the first finding of a PreToolUse hook comes back for each tool
+call.
 
 ### B.6 Apply a rule change that the agent gave
 

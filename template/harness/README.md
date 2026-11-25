@@ -81,7 +81,11 @@ State: `$HARNESS_AGENT_DIR` (default `/run/harness/agent`, agent-writable)
 holds the run state; `$HARNESS_APPROVAL_DIR` (default
 `/run/harness/approvals`, root-only in the container) holds the tokens;
 `$HARNESS_OFF` (default `/run/harness/off`, root-only) is the operator's
-switch — present means every hook exits without a decision.
+switch — present means every hook exits without a decision;
+`$HARNESS_ADVISORY` (default `/run/harness/advisory`, root-only) is its
+middle position — the hooks run, a deny becomes `additionalContext` for
+the agent plus a `systemMessage`, a blocked stop becomes a
+`systemMessage`, nothing blocks (`dcc harness advisory`; off wins).
 Outside the container both default to paths the agent could write —
 the tests set them to temp dirs. The guarantee needs the container.
 
