@@ -86,6 +86,11 @@ switch — present means every hook exits without a decision;
 middle position — the hooks run, a deny becomes `additionalContext` for
 the agent plus a `systemMessage`, a blocked stop becomes a
 `systemMessage`, nothing blocks (`dcc harness advisory`; off wins).
+In advisory `harness phase <name>` sets any phase: a missing ticket,
+plan, ponytail declaration or token is reported on stderr, not required,
+and a declared `implement` holds without a token (scope: the token's, or
+everything when there is none). Back on, `implement` without a valid
+token is `review` again.
 Outside the container both default to paths the agent could write —
 the tests set them to temp dirs. The guarantee needs the container.
 

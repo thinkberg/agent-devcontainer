@@ -19,7 +19,8 @@
 # `dcc harness off`) makes every hook exit without a decision.
 # HARNESS_ADVISORY (`dcc harness advisory`) keeps the checks and removes the
 # block: a deny becomes context for the agent plus a message to the operator,
-# a blocked stop becomes a message. Off wins when both markers are there.
+# a blocked stop becomes a message, and `harness phase` sets any phase (a
+# missing precondition or token is reported). Off wins when both are there.
 #
 # Rules: the generic registry (rules.json next to this file) merged with
 # the project overlay (<root>/.devcontainer/rules/rules.json). State:
@@ -275,12 +276,14 @@ def run_state():
 
 def effective_phase():
     """the declared phase; `implement` holds only while the operator's token
-    matches the plan on disk. No state at all = brainstorm (fail closed)."""
+    matches the plan on disk — or the harness is advisory, where the declared
+    phase stands (back to review at `dcc harness on`). No state at all =
+    brainstorm (fail closed)."""
     st = run_state()
     if st is None:
         return "brainstorm"
     p = st.get("phase") or "brainstorm"
-    if p == "implement":
+    if p == "implement" and not advisory():
         plan = st.get("plan") or ""
         tok = approval_token(plan)
         if not (plan and os.path.isfile(tok) and token_blob(tok) == blob_of(os.path.join(ROOT, plan))):
@@ -290,7 +293,8 @@ def effective_phase():
 
 def implement_scope():
     st = run_state() or {}
-    return token_scope(approval_token(st.get("plan") or ""))
+    # advisory without a token: the whole workspace, there is no scope to report against
+    return token_scope(approval_token(st.get("plan") or "")) or (["*"] if advisory() else [])
 
 
 # ---- checkers ----------------------------------------------------------------
@@ -1015,31 +1019,40 @@ def cli_phase(argv):
             die("unknown option %s" % argv[0])
     idx = order.index
     blob = ""
+
+    def need(msg):
+        # advisory: the agent declares the phase its work is in; a missing
+        # precondition is reported, the phase is set all the same
+        if not advisory():
+            die(msg)
+        print("harness: ADVISORY, not blocked — " + msg, file=sys.stderr)
+
     if idx(target) >= idx("plan"):
         if not re.search(phases["ticket_regex"], ticket or ""):
-            die("phase %s needs a ticket (--ticket backend#12); %s" % (target, phases["preconditions"]["plan"]))
+            need("phase %s needs a ticket (--ticket backend#12); %s" % (target, phases["preconditions"]["plan"]))
     if idx(target) >= idx("review"):
         glob = phases["plan_glob"]
-        if not plan:
-            die("phase %s needs --plan <path> under %s" % (target, glob))
         if plan.startswith(ROOT + "/"):
             plan = plan[len(ROOT) + 1:]
-        if not glob_match(plan, glob):
-            die("plan '%s' is not under %s" % (plan, glob))
-        if not os.path.isfile(os.path.join(ROOT, plan)):
-            die("plan file %s does not exist" % plan)
-        blob = committed_blob(plan)
-        if not blob:
-            die("plan %s is not committed, or has uncommitted changes — commit it first (explicit path, -C absolute)" % plan)
+        if not plan:
+            need("phase %s needs --plan <path> under %s" % (target, glob))
+        elif not glob_match(plan, glob):
+            need("plan '%s' is not under %s" % (plan, glob))
+        elif not os.path.isfile(os.path.join(ROOT, plan)):
+            need("plan file %s does not exist" % plan)
+        else:
+            blob = committed_blob(plan)
+            if not blob:
+                need("plan %s is not committed, or has uncommitted changes — commit it first (explicit path, -C absolute)" % plan)
         if ponytail not in (True, "true"):
-            die("phase %s needs --ponytail-reviewed: run ponytail-review over %s, fold the trims in, commit, "
-                "then declare it" % (target, plan))
+            need("phase %s needs --ponytail-reviewed: run ponytail-review over %s, fold the trims in, commit, "
+                 "then declare it" % (target, plan))
     if target == "implement":
         tok = approval_token(plan)
         if not os.path.isfile(tok):
-            die("phase implement needs the operator's approval: ask for 'dcc approve %s' on the host" % plan)
-        if token_blob(tok) != blob:
-            die("approval is stale: %s changed after it was approved — ask for a new 'dcc approve %s'" % (plan, plan))
+            need("phase implement needs the operator's approval: ask for 'dcc approve %s' on the host" % plan)
+        elif token_blob(tok) != blob:
+            need("approval is stale: %s changed after it was approved — ask for a new 'dcc approve %s'" % (plan, plan))
     os.makedirs(AGENT, exist_ok=True)
     with open(os.path.join(AGENT, "run.json"), "w", encoding="utf-8") as fh:
         json.dump({"phase": target, "ticket": ticket or "", "plan": plan or "",
@@ -1078,6 +1091,8 @@ def cli_steps():
     print()
     print("  brainstorm → plan → review → implement: the agent advances with 'harness phase <name>';")
     print("  review → implement needs the operator's token (dcc approve <plan> [--scope …] on the host).")
+    if advisory():
+        print("  ADVISORY: 'harness phase <name>' sets any phase; a missing precondition or token is reported, not required.")
     print("  After implement the steps verify, commit, publish, release, close are rule-guarded: 'harness rules --step <name>'.")
     print("  Rule steps: %s" % " ".join(RULES.get("steps") or []))
 

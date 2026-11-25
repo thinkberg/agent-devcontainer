@@ -303,7 +303,9 @@ without its blocks, for a short time.
      nothing. When a hook finds a violation, the agent gets the message
      with the rule id, you see the same message, and the tool call
      continues. When a Stop hook finds a violation, you see the message
-     and the session stops.
+     and the session stops. The agent can set each phase with
+     `harness phase <name>`. The command gives a message for each
+     precondition that is missing and sets the phase.
 2. Run `dcc harness on` when you complete the work.
 
 A container restart sets the harness to on.
@@ -311,13 +313,17 @@ A container restart sets the harness to on.
 In the state `advisory`, these controls stay as they are:
 
 - The controls that are not hooks: the firewall, the mounts with write
-  protection, the approval tokens.
+  protection, the approval tokens. The agent cannot write a token.
 - The gate. `dcc check` gives `FAIL` and exit code 1 as usual.
 - The PostToolUse checks. They give their findings to the agent after the
   edit. They do not block in the state on.
 
 Only the first finding of a PreToolUse hook comes back for each tool
 call.
+
+In the state `advisory`, the phase `implement` does not need the approval
+token of the plan. When you set the harness to on, the phase `implement`
+needs a valid token again. Without the token, the phase is `review`.
 
 ### B.6 Apply a rule change that the agent gave
 

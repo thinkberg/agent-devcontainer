@@ -325,6 +325,18 @@ expect deny:phase-gate "$PW" "$(tj "$T/backend/src/x.py")" "stale: committed cha
 expect_exit 1 "re-declaring implement on a stale approval refused" "$H" phase implement
 "$H" approve "$PLAN" >/dev/null && "$H" phase implement >/dev/null
 expect allow "$PW" "$(tj "$T/backend/src/x.py")" "re-approved: code allowed again"
+# advisory: the agent sets the phase of its work, preconditions are reported
+cp "$T/.agent/run.json" "$T/run.saved"; rm "$T/.agent/run.json" "$T/.approvals"/*
+export HARNESS_ADVISORY=$(mktemp)
+out=$("$H" phase implement 2>&1); rc=$?
+[ $rc = 0 ] && grep -q 'ADVISORY.*needs a ticket' <<<"$out" && grep -q 'ADVISORY.*approval' <<<"$out" \
+    && pass=$((pass+1)) || { fail=$((fail+1)); echo "FAIL [advisory: phase implement without ticket, plan, token is set and reported] rc=$rc $out"; }
+out=$("$PW" <<<"$(tj "$T/backend/src/x.py")")
+[ -z "$out" ] && pass=$((pass+1)) || { fail=$((fail+1)); echo "FAIL [advisory: declared implement holds without a token, no finding] $out"; }
+expect_exit 1 "advisory: an unknown phase is still refused" "$H" phase bogus
+rm -f "$HARNESS_ADVISORY"; unset HARNESS_ADVISORY
+expect deny:phase-gate "$PW" "$(tj "$T/backend/src/x.py")" "advisory removed: implement without a token drops to review"
+cp "$T/run.saved" "$T/.agent/run.json"; "$H" approve "$PLAN" >/dev/null
 
 echo "== plan-work-on-branch (phase implement: a branch, not main)"
 git -C "$T/backend" init -q -b main
