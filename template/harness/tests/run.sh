@@ -197,15 +197,13 @@ unset HARNESS_OFF
 
 echo "== operator switch (HARNESS_ADVISORY marker)"
 export HARNESS_ADVISORY=$(mktemp)
-out=$(pb <<<"$(bash_json "git -C $P add -A")")
-[ "$(jq -r '.hookSpecificOutput.permissionDecision // "none"' <<<"$out")" = none ] && grep -q 'git-stage-explicit' <<<"$(jq -r '.hookSpecificOutput.additionalContext' <<<"$out")" \
-    && pass=$((pass+1)) || { fail=$((fail+1)); echo "FAIL [advisory: pre-bash reports, no decision] $out"; }
-expect allow "$PW" "$(edit_json "$WS/www/static/legal/avv-de-v1.2.pdf")" "advisory: pre-write makes no decision"
+expect deny:git-stage-explicit "$PB" "$(bash_json "git -C $P add -A")" "advisory: a git rule still denies"
+expect deny:tickets-via-bin "$PB" "$(bash_json "gh issue close 12")" "advisory: a non-workflow rule still denies"
+expect deny:protected-paths "$PW" "$(edit_json "$WS/www/static/legal/avv-de-v1.2.pdf")" "advisory: protected-paths still denies"
 "$TS" post <<<"$(bash_json "$P/bin/update-estimates backend#12=1")" >/dev/null
-out=$("$TS" stop <<<"$(jq -n '{session_id:"t1"}')"); rc=$?
-[ $rc = 0 ] && jq -e '.systemMessage | test("check-tickets-after-change")' <<<"$out" >/dev/null \
-    && pass=$((pass+1)) || { fail=$((fail+1)); echo "FAIL [advisory: dirty stop passes with a systemMessage] rc=$rc $out"; }
-out=$(CLAUDE_PROJECT_DIR=$WS HARNESS_AGENT_DIR=$(mktemp -d) "$H" status | head -1); grep -q 'ADVISORY' <<<"$out" && pass=$((pass+1)) || { fail=$((fail+1)); echo "FAIL [advisory: status says ADVISORY] $out"; }
+out=$("$TS" stop <<<"$(jq -n '{session_id:"t1"}')" 2>/dev/null); rc=$?
+[ $rc = 2 ] && pass=$((pass+1)) || { fail=$((fail+1)); echo "FAIL [advisory: a dirty ticket stop still blocks] rc=$rc $out"; }
+out=$(CLAUDE_PROJECT_DIR=$WS HARNESS_AGENT_DIR=$(mktemp -d) "$H" status | head -1); grep -q 'ADVISORY.*phase-gate' <<<"$out" && pass=$((pass+1)) || { fail=$((fail+1)); echo "FAIL [advisory: status says ADVISORY] $out"; }
 rm -f "$HARNESS_ADVISORY"
 expect deny:git-stage-explicit "$PB" "$(bash_json "git -C $P add -A")" "advisory removed: denies"
 "$TS" post <<<"$(bash_json "$P/bin/check-tickets")" >/dev/null
@@ -333,6 +331,16 @@ out=$("$H" phase implement 2>&1); rc=$?
     && pass=$((pass+1)) || { fail=$((fail+1)); echo "FAIL [advisory: phase implement without ticket, plan, token is set and reported] rc=$rc $out"; }
 out=$("$PW" <<<"$(tj "$T/backend/src/x.py")")
 [ -z "$out" ] && pass=$((pass+1)) || { fail=$((fail+1)); echo "FAIL [advisory: declared implement holds without a token, no finding] $out"; }
+"$H" phase brainstorm >/dev/null
+out=$("$PW" <<<"$(tj "$T/backend/src/x.py")")
+[ "$(jq -r '.hookSpecificOutput.permissionDecision // "none"' <<<"$out")" = none ] && grep -q 'phase-gate' <<<"$(jq -r '.hookSpecificOutput.additionalContext' <<<"$out")" \
+    && pass=$((pass+1)) || { fail=$((fail+1)); echo "FAIL [advisory: the phase gate reports, no decision] $out"; }
+"$H" phase implement >/dev/null 2>&1
+git -C "$T" init -q -b main adv
+out=$("$PB" <<<"$(tb "git -C $T/adv commit -m x")")
+[ "$(jq -r '.hookSpecificOutput.permissionDecision // "none"' <<<"$out")" = none ] && grep -q 'plan-work-on-branch' <<<"$(jq -r '.hookSpecificOutput.additionalContext' <<<"$out")" \
+    && pass=$((pass+1)) || { fail=$((fail+1)); echo "FAIL [advisory: plan-work-on-branch reports, no decision] $out"; }
+expect deny:git-no-bypass "$PB" "$(tb "git -C $T/adv commit --no-verify -m x")" "advisory: a blocking rule after a workflow finding still denies"
 expect_exit 1 "advisory: an unknown phase is still refused" "$H" phase bogus
 rm -f "$HARNESS_ADVISORY"; unset HARNESS_ADVISORY
 expect deny:phase-gate "$PW" "$(tj "$T/backend/src/x.py")" "advisory removed: implement without a token drops to review"

@@ -83,9 +83,14 @@ holds the run state; `$HARNESS_APPROVAL_DIR` (default
 `$HARNESS_OFF` (default `/run/harness/off`, root-only) is the operator's
 switch — present means every hook exits without a decision;
 `$HARNESS_ADVISORY` (default `/run/harness/advisory`, root-only) is its
-middle position — the hooks run, a deny becomes `additionalContext` for
-the agent plus a `systemMessage`, a blocked stop becomes a
-`systemMessage`, nothing blocks (`dcc harness advisory`; off wins).
+middle position (`dcc harness advisory`; off wins): the workflow rules —
+the ones with `"advisory": true` in the registry: `phase-gate`,
+`plan-file-first`, `plan-approval-not-go`, `scope-to-project`,
+`plan-work-on-branch` — report and do not block. Their deny becomes
+`additionalContext` for the agent plus a `systemMessage`; every finding
+of the call is in it. Every other rule blocks as usual, the Stop hooks
+and an engine or registry error included, also after a workflow finding
+in the same call. A project rule gets the same with `"advisory": true`.
 In advisory `harness phase <name>` sets any phase: a missing ticket,
 plan, ponytail declaration or token is reported on stderr, not required,
 and a declared `implement` holds without a token (scope: the token's, or

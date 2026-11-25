@@ -231,7 +231,7 @@ both agents.
 | `dcc approve <plan>` | Approve a committed plan. The run can then go to phase implement. `--scope <glob>…` limits the writes. |
 | `dcc approve-release <repo> <pr>` | Approve the merge of a Release PR at the head of the PR. |
 | `dcc check`          | Run the harness gate checks in the container.                         |
-| `dcc harness on\|advisory\|off` | The harness switch. Off: the hooks make no decisions. Advisory: the hooks report what they would block and block nothing, and the agent can set any phase (`harness phase <name>`) without the preconditions or the plan approval. Both hold until `dcc harness on` or the next start. |
+| `dcc harness on\|advisory\|off` | The harness switch. Off: the hooks make no decisions. Advisory: the workflow rules (phase gate, plan scope, work on a branch) report and do not block, every other rule (git, protected paths, secrets, tickets) blocks as usual, and the agent can set any phase (`harness phase <name>`) without the preconditions or the plan approval. Both hold until `dcc harness on` or the next start. |
 | `dcc root [cmd]`     | Open a root shell in the container, or run `cmd` as root. Repairs only. |
 
 Notes:
@@ -743,8 +743,8 @@ The harness gives you:
   `dcc check`;
 - a project overlay in `.devcontainer/rules/` for the rules and checkers
   of your project;
-- a switch, `dcc harness on|advisory|off`: enforce, report only, or no
-  decisions.
+- a switch, `dcc harness on|advisory|off`: enforce, workflow rules report only, or
+  no decisions.
 
 The hooks are wired for both agents and were tested against both. One
 guarantee is weaker under Codex: a session that changed tickets must

@@ -420,7 +420,7 @@ The host is the approval seat. Every new command follows the shape of
 | `dcc publish` | Gate, then push with the host credential |
 | `dcc rules approve` | Write `rules.lock` after you read the change |
 | `dcc harness test` | Run the policy tests of section 13 |
-| `dcc harness on\|advisory\|off` | The operator's runtime switch (built): off = no decisions, advisory = the hooks report and block nothing and the agent sets any phase with `harness phase` (preconditions and the plan token reported, not required), both until on or the next start; root-owned markers, visible to the agent, not writable by it |
+| `dcc harness on\|advisory\|off` | The operator's runtime switch (built): off = no decisions, advisory = the workflow rules (phase gate, plan scope, branch rule; `"advisory": true` in the registry) report and do not block, every other rule blocks, and the agent sets any phase with `harness phase` (preconditions and the plan token reported, not required), both until on or the next start; root-owned markers, visible to the agent, not writable by it |
 
 ## 13. Test the policy system
 

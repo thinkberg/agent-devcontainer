@@ -17,10 +17,12 @@
 # The hooks fail closed: an unreadable registry, a corrupt overlay, a bad
 # regex or a bug in this program denies. HARNESS_OFF (a root-owned marker,
 # `dcc harness off`) makes every hook exit without a decision.
-# HARNESS_ADVISORY (`dcc harness advisory`) keeps the checks and removes the
-# block: a deny becomes context for the agent plus a message to the operator,
-# a blocked stop becomes a message, and `harness phase` sets any phase (a
-# missing precondition or token is reported). Off wins when both are there.
+# HARNESS_ADVISORY (`dcc harness advisory`) makes the workflow rules — the
+# ones with "advisory": true in the registry: the phase gate, the plan
+# scope, the branch rule — report instead of block: their deny becomes
+# context for the agent plus a message to the operator, and `harness phase`
+# sets any phase (a missing precondition or token is reported). Every other
+# rule blocks as usual. Off wins when both markers are there.
 #
 # Rules: the generic registry (rules.json next to this file) merged with
 # the project overlay (<root>/.devcontainer/rules/rules.json). State:
@@ -33,6 +35,7 @@
 # fast. `python3 -I`: no user site-packages, no PYTHON* variables — the
 # agent could write a .pth file into its own site-packages otherwise, and
 # that would run inside every hook.
+import atexit
 import fnmatch
 import json
 import os
@@ -348,26 +351,38 @@ def hook_input():
     return inp if isinstance(inp, dict) else {}, raw
 
 
-def deny(reason):
-    # ponytail: an advisory deny exits like a real one — the first finding only,
-    # and a Bash write advised against is not noted for the stop checks
-    # (Edit/Write are, by post-write). Collect the findings if that matters.
-    if advisory():
-        msg = "ADVISORY, not blocked — " + reason
+ADVISED = []   # advisory findings of this call, printed at exit unless a rule denies
+
+
+def flush_advised():
+    if ADVISED:
+        msg = "ADVISORY, not blocked — " + "\n".join(ADVISED)
         print(json.dumps({"systemMessage": msg,
                           "hookSpecificOutput": {"hookEventName": "PreToolUse", "additionalContext": msg}}))
-        sys.exit(0)
+
+
+def deny(reason):
+    # advisory covers the workflow rules only ("advisory": true in the
+    # registry); every other rule, and an engine or registry error, denies.
+    # An advisory finding does not end the hook: the rules after it still
+    # run, and one that blocks wins (its deny is the only output).
+    m = re.match(r"harness \[([^]]+)\]", reason)
+    r = rule(m.group(1)) if m and RULES else None
+    if advisory() and r and r.get("advisory") is True:
+        if not ADVISED:
+            atexit.register(flush_advised)
+        if reason not in ADVISED:
+            ADVISED.append(reason)
+        return
+    del ADVISED[:]
     print(json.dumps({"hookSpecificOutput": {"hookEventName": "PreToolUse", "permissionDecision": "deny",
                                              "permissionDecisionReason": reason}}))
     sys.exit(0)
 
 
 def block_stop(msg):
-    """A Stop hook blocks with stderr and exit 2; advisory: the operator gets
-    the message and the stop goes through."""
-    if advisory():
-        print(json.dumps({"systemMessage": "ADVISORY, stop not blocked — " + msg.rstrip("\n")}))
-        sys.exit(0)
+    """A Stop hook blocks with stderr and exit 2 (advisory too: no stop rule
+    is a workflow rule)."""
     sys.stderr.write(msg)
     sys.exit(2)
 
@@ -743,8 +758,8 @@ def hook_pre_write():
         nxt = order[i + 1] if 0 <= i and i + 1 < len(order) else phase
         allowed = "".join(g + " " for g in allow) or " "
         if phase == "implement":
-            deny("harness [scope-to-project]: the approved scope is %s— %s is outside it; "
-                 "ask the operator to widen it (dcc approve <plan> --scope …)" % (allowed, rel))
+            return deny("harness [scope-to-project]: the approved scope is %s— %s is outside it; "
+                        "ask the operator to widen it (dcc approve <plan> --scope …)" % (allowed, rel))
         deny("harness [phase-gate]: phase %s allows writes only to %s— %s is outside. "
              "Next: harness phase %s (see harness status)" % (phase, allowed, rel, nxt))
 
@@ -977,8 +992,10 @@ def cli_status():
         print("harness: OFF — the operator switched it off (dcc harness off); hooks make no decisions "
               "until 'dcc harness on' or the next container start")
     elif advisory():
-        print("harness: ADVISORY — the operator switched it to advisory (dcc harness advisory); hooks report "
-              "and do not block until 'dcc harness on' or the next container start")
+        print("harness: ADVISORY — the operator switched it to advisory (dcc harness advisory); the workflow "
+              "rules (%s) report and do not block, 'harness phase' sets any phase, every other rule blocks — "
+              "until 'dcc harness on' or the next container start"
+              % " ".join(r["id"] for r in RULES["rules"] if r.get("advisory") is True))
     else:
         print("harness: on")
     print("rules:  %d (%s)" % (len(RULES["rules"]), (RULES.get("project") or {}).get("name") or "no project overlay"))

@@ -45,9 +45,10 @@
 #   dcc harness [on|advisory|off|status]
 #                       the operator's runtime switch: off = the hooks make
 #                       no decisions (plain Claude Code permissions apply);
-#                       advisory = the hooks report what they would block
-#                       and block nothing, and the agent sets any phase
-#                       itself; both hold until `dcc harness on`
+#                       advisory = the workflow rules (phase gate, plan
+#                       scope, branch rule) report and do not block, the
+#                       agent sets any phase itself, every other rule
+#                       blocks; both hold until `dcc harness on`
 #                       or the next container start
 #   dcc fw              re-run the firewall (e.g. after CDN IPs rotated)
 #   dcc root            root shell (host-side escape hatch; no sudo inside)
@@ -416,7 +417,7 @@ case "$1" in
             off)    $ENGINE exec -u root "$CTR" sh -c 'mkdir -p /run/harness && touch /run/harness/off && rm -f /run/harness/advisory' \
                         && echo "harness OFF — until 'dcc harness on' or the next container start" ;;
             advisory) $ENGINE exec -u root "$CTR" sh -c 'mkdir -p /run/harness && touch /run/harness/advisory && rm -f /run/harness/off' \
-                        && echo "harness ADVISORY — reports, does not block, the agent sets any phase — until 'dcc harness on' or the next container start" ;;
+                        && echo "harness ADVISORY — the workflow rules report and do not block, the agent sets any phase, every other rule blocks — until 'dcc harness on' or the next container start" ;;
             on)     $ENGINE exec -u root "$CTR" rm -f /run/harness/off /run/harness/advisory && echo "harness on" ;;
             status) $ENGINE exec -u vscode -w "$ROOT" -e CLAUDE_PROJECT_DIR="$ROOT" "$CTR" /usr/local/lib/harness/harness.py status ;;
             *) echo "usage: dcc harness [on|advisory|off|status]" >&2; exit 1 ;;

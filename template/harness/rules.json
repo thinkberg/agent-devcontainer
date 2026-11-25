@@ -23,25 +23,25 @@
   },
   "rules": [
     {
-      "id": "phase-gate", "class": "enforce", "step": "plan", "trigger": "pre_write",
+      "id": "phase-gate", "class": "enforce", "advisory": true, "step": "plan", "trigger": "pre_write",
       "source": "the operator's working process",
       "text": "Writes are allowed only where the current phase permits. The phase advances through harness phase; implement needs the operator's approval token.",
       "check": { "builtin": "phase-gate" }
     },
     {
-      "id": "plan-file-first", "class": "enforce", "step": "plan", "trigger": "pre_write",
+      "id": "plan-file-first", "class": "enforce", "advisory": true, "step": "plan", "trigger": "pre_write",
       "source": "operator's rule; incident 2026-07-21 (a plan approved in chat, written down afterwards)",
       "text": "Code edits happen in phase implement only, which needs a committed plan file and the operator's approval token.",
       "check": { "builtin": "phase-gate" }
     },
     {
-      "id": "plan-approval-not-go", "class": "enforce", "step": "plan", "trigger": "pre_write",
+      "id": "plan-approval-not-go", "class": "enforce", "advisory": true, "step": "plan", "trigger": "pre_write",
       "source": "operator's rule: plan approval in a conversation is not permission to implement",
       "text": "Plan approval is a token the operator writes on the host. Without it the phase stays review and code writes are denied.",
       "check": { "builtin": "phase-gate" }
     },
     {
-      "id": "scope-to-project", "class": "enforce", "step": "implement", "trigger": "pre_write",
+      "id": "scope-to-project", "class": "enforce", "advisory": true, "step": "implement", "trigger": "pre_write",
       "source": "operator's rule: keep changes scoped to the requested project",
       "text": "In phase implement, writes stay inside the scope the operator gave with the approval (dcc approve <plan> --scope <glob>…) plus what phase review allows (the planning markdown: plans, DONE, archive); default scope is the whole workspace.",
       "check": { "builtin": "phase-gate" }
@@ -69,7 +69,7 @@
         "\\bgit(\\s+-[cC]\\s+\\S+)*\\s+commit\\s+((?:[^\"'\\s]+|\"[^\"]*\"|'[^']*')\\s+)*-n(\\s|$)" ] }
     },
     {
-      "id": "plan-work-on-branch", "class": "enforce", "step": "commit", "trigger": "pre_bash",
+      "id": "plan-work-on-branch", "class": "enforce", "advisory": true, "step": "commit", "trigger": "pre_bash",
       "source": "operator's rule: the work of an approved plan goes on a branch, not main",
       "text": "In phase implement, never commit on main or master and never push to them. Branch off (git -C /repo switch -c <branch>) and open a PR. Plans and plan revisions outside implement may still be committed on main, and so may the repos in phases.branch_exempt (a planning repo).",
       "check": { "builtin": "plan-work-on-branch" }

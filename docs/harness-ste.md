@@ -48,7 +48,7 @@ The harness has four parts:
 | `$HARNESS_AGENT_DIR` (default `/run/harness/agent`) | The run state (`run.json`). | the agent |
 | `$HARNESS_APPROVAL_DIR` (default `/run/harness/approvals`) | The approval tokens. | root |
 | `$HARNESS_OFF` (default `/run/harness/off`) | The off switch. When this file is there, the hooks make no decisions. | root |
-| `$HARNESS_ADVISORY` (default `/run/harness/advisory`) | The `advisory` switch. When this file is there, the hooks give their findings and do not block. The off switch has priority. | root |
+| `$HARNESS_ADVISORY` (default `/run/harness/advisory`) | The `advisory` switch. When this file is there, the workflow rules give their findings and do not block. The off switch has priority. | root |
 
 The `harness` command is on the PATH.
 
@@ -89,7 +89,8 @@ In a failure, a hook denies. A failure does not let a call through.
 ### A.5 The rules
 
 A rule has an `id`, a `step`, a `class`, a `text` and, in most rules, a
-`check`.
+`check`. A rule with `"advisory": true` is a workflow rule. In the state
+`advisory`, a workflow rule gives its finding and does not block.
 
 The `step` is the step of the work that the rule is applicable to. The
 steps are: `intake`, `plan`, `implement`, `verify`, `commit`, `publish`,
@@ -299,11 +300,13 @@ without its blocks, for a short time.
 1. Select the state:
    - Run `dcc harness off`. The hooks make no decisions. The usual
      permission prompts of Claude Code apply.
-   - Run `dcc harness advisory`. The hooks do all checks and block
-     nothing. When a hook finds a violation, the agent gets the message
-     with the rule id, you see the same message, and the tool call
-     continues. When a Stop hook finds a violation, you see the message
-     and the session stops. The agent can set each phase with
+   - Run `dcc harness advisory`. The hooks do all checks. The workflow
+     rules do not block: `phase-gate`, `plan-file-first`,
+     `plan-approval-not-go`, `scope-to-project`, `plan-work-on-branch`.
+     When a hook finds a violation of a workflow rule, the agent gets
+     the message with the rule id, you see the same message, and the
+     tool call continues. All other rules block as in the state on. The
+     Stop hooks block also. The agent can set each phase with
      `harness phase <name>`. The command gives a message for each
      precondition that is missing and sets the phase.
 2. Run `dcc harness on` when you complete the work.
@@ -317,9 +320,10 @@ In the state `advisory`, these controls stay as they are:
 - The gate. `dcc check` gives `FAIL` and exit code 1 as usual.
 - The PostToolUse checks. They give their findings to the agent after the
   edit. They do not block in the state on.
+- All rules that are not workflow rules, for example the git rules, the
+  protected paths and the secrets rule.
 
-Only the first finding of a PreToolUse hook comes back for each tool
-call.
+`harness status` shows the workflow rules in the state `advisory`.
 
 In the state `advisory`, the phase `implement` does not need the approval
 token of the plan. When you set the harness to on, the phase `implement`
